@@ -1,13 +1,10 @@
 #pragma once
 
 #include "timer.hpp"
-#include "shader.hpp"
 
 #include <vector>
 #include <print>
 #include <algorithm>
-
-#include <glad/glad.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

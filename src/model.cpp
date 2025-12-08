@@ -1,11 +1,16 @@
 #include "model.hpp"
 
-VMesh::Model::Model(const std::string& pPath, uint pResolution)
-:SparseVoxelDAG(pResolution), mResolution(pResolution) {
-  // Init mVoxelGrid
-  mVoxelGrid = std::vector<std::vector<std::vector<bool>>>(pResolution, std::vector<std::vector<bool>>(pResolution, std::vector<bool>(pResolution, false)));
-
+VMesh::Model::Model(const std::string& pPath, float pScaleFactor)
+:mScaleFactor(pScaleFactor) {
   loadModel(pPath);
+}
+
+uint VMesh::Model::getTriangleCount() {
+  return mTriangleCount;
+}
+
+float VMesh::Model::getScaleFactor() {
+  return mScaleFactor;
 }
 
 void VMesh::Model::loadModel(const std::string& pPath) {
@@ -49,9 +54,6 @@ void VMesh::Model::loadModel(const std::string& pPath) {
   // mMeshIndices.push_back(1);
   // mMeshIndices.push_back(2);
 
-  mData.push_back({glm::vec4(0.1, 0.1, 0.1, 0)});
-
-  mVoxelCount = 0u;
   mTriangleCount = mMeshIndices.size() / 3u;
 
   float triangleCountInv = 1.f/mTriangleCount;
@@ -59,6 +61,7 @@ void VMesh::Model::loadModel(const std::string& pPath) {
   uint progressDelay = mTriangleCount / 100u;
 
   for (uint i = 0; i < mMeshVertices.size(); ++i) {
+    mMeshVertices[i] += mScaleFactor;
     // Green player
     // mMeshVertices[i] *= mResolution * 2;
     // mMeshVertices[i] += mResolution * 0.5f;
@@ -333,16 +336,5 @@ glm::vec3 VMesh::Model::toVec3(float a, float b, float c, uint8_t pDominantAxisI
     v.z = a;
   }
   return v;
-}
-
-void VMesh::Model::generateDebugLineIndices() {
-  for (uint i = 0; i < mTriangleCount; ++i) {
-    mDebugLineIndices.push_back(mMeshIndices[i * 3]);
-    mDebugLineIndices.push_back(mMeshIndices[i * 3 + 1]);
-    mDebugLineIndices.push_back(mMeshIndices[i * 3 + 1]);
-    mDebugLineIndices.push_back(mMeshIndices[i * 3 + 2]);
-    mDebugLineIndices.push_back(mMeshIndices[i * 3 + 2]);
-    mDebugLineIndices.push_back(mMeshIndices[i * 3]);
-  }
 }
 

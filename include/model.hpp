@@ -1,6 +1,7 @@
 #pragma once
 
 #include "helpers.hpp"
+#include "timer.hpp"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -12,9 +13,12 @@
 namespace VMesh {
   class Model {
   public:
-    Model(const std::string& pPath, uint pResolution);
+    Model(const std::string& pPath, float pScaleFactor);
 
     std::function<void(glm::vec3)> insertCallback;
+
+    uint getTriangleCount();
+    float getScaleFactor();
   protected:
     void loadModel(const std::string& pPath);
     void processNode(aiNode* pNode, const aiScene* pScene);
@@ -27,11 +31,8 @@ namespace VMesh {
     std::vector<glm::vec3> mMeshVertices;
     std::vector<uint> mMeshIndices;
 
-    std::vector<std::vector<std::vector<bool>>> mVoxelGrid;
-    uint mResolution;
-
-    uint mVoxelCount;
     uint mTriangleCount;
+    float mScaleFactor;
   };
 }
 
