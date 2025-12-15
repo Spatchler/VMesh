@@ -1,31 +1,91 @@
 #include "model.hpp"
 
-VMesh::Model::Model(const std::string& pPath, float pScaleFactor)
-:mScaleFactor(pScaleFactor) {
-  loadModel(pPath);
+float VMesh::v3index(glm::tvec3<float> v, uint8_t i) {
+  if (i == 0)
+    return v.x;
+  if (i == 1)
+    return v.y;
+  if (i == 2)
+    return v.z;
+  return 0.f;
 }
 
-uint VMesh::Model::getTriangleCount() {
-  return mTriangleCount;
+VMesh::Model::Model(const std::string& pPath, const uint& pResolution, const insertFunc_t& pInsertFunc)
+:mResolution(pResolution) {
+  load(pPath, mResolution);
 }
 
-float VMesh::Model::getScaleFactor() {
-  return mScaleFactor;
+void VMesh::Model::load(const std::string& pPath, const uint& pResolution, const insertFunc_t& pInsertFunc) {
+  mResolution = pResolution;
+  loadMeshData(pPath);
+  generateVoxelData(pResolution, pInsertFunc);
 }
 
-void VMesh::Model::loadModel(const std::string& pPath) {
-  VMesh::ScopedTimer loadModelTimer(std::format("loadModel: {}", pPath));
-
+void VMesh::Model::loadMeshData(const std::string& pPath) {
   Assimp::Importer importer;
 
   const aiScene* scene = importer.ReadFile(pPath, aiProcess_Triangulate);
 
   if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
-    std::println("ERROR::ASSIMP::{0}", importer.GetErrorString());
-    return;
+    throw std::format("ERROR::ASSIMP: {}", importer.GetErrorString());
   }
 
   processNode(scene->mRootNode, scene);
+
+  mTrisComplete = 0u;
+  mTriCount = mMeshIndices.size() / 3u;
+  mTriCountInv = 1.f/mTriCount;
+}
+
+void VMesh::Model::transformMeshVertices(const glm::mat3& pM) {
+  for (uint i = 0; i < mMeshVertices.size(); ++i) {
+    mMeshVertices[i] = pM * mMeshVertices[i];
+  }
+}
+
+uint VMesh::Model::getTriCount() {
+  return mTriCount;
+}
+
+uint VMesh::Model::getVoxelCount() {
+  return mVoxelCount;
+}
+
+float VMesh::Model::getProgress() {
+  return mTrisComplete * mTriCountInv;
+}
+
+void VMesh::Model::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
+  if (!pMutex)
+    mLogMutex = &mDefaultLogMutex;
+  else
+    mLogMutex = pMutex;
+  mLogStream = pStream;
+}
+
+int VMesh::Model::insert(const glm::vec3& pPos, const insertFunc_t& pInsertFunc) {
+  if (pPos.x < 0 || pPos.x > mResolution ||
+      pPos.y < 0 || pPos.y > mResolution ||
+      pPos.z < 0 || pPos.z > mResolution) {
+    std::lock_guard<std::mutex> lock(*mLogMutex);
+    std::println(*mLogStream, "Couldn't insert voxel: {}, {}, {}. Reason: voxel outside grid", pPos.x, pPos.y, pPos.z);
+    return 1;
+  }
+
+  if (!mVoxelGrid[pPos.x][pPos.y][pPos.z]) {
+    ++mVoxelCount;
+    pInsertFunc(pPos.x, pPos.y, pPos.z);
+    mVoxelGrid[pPos.x][pPos.y][pPos.z] = true;
+  }
+  return 0;
+}
+
+void VMesh::Model::generateVoxelData(uint pResolution, const insertFunc_t& pInsertFunc) {
+  mResolution = pResolution;
+  // VMesh::ScopedTimer t("Generating voxel data");
+
+  // Init mVoxelGrid
+  mVoxelGrid = std::vector<std::vector<std::vector<bool>>>(pResolution, std::vector<std::vector<bool>>(pResolution, std::vector<bool>(pResolution, false)));
 
   // mMeshVertices.push_back(glm::vec3(10, 10, 10));
   // mMeshVertices.push_back(glm::vec3(20, 20, 10));
@@ -54,14 +114,7 @@ void VMesh::Model::loadModel(const std::string& pPath) {
   // mMeshIndices.push_back(1);
   // mMeshIndices.push_back(2);
 
-  mTriangleCount = mMeshIndices.size() / 3u;
-
-  float triangleCountInv = 1.f/mTriangleCount;
-  uint countSinceLastPrint = 0u;
-  uint progressDelay = mTriangleCount / 100u;
-
   for (uint i = 0; i < mMeshVertices.size(); ++i) {
-    mMeshVertices[i] += mScaleFactor;
     // Green player
     // mMeshVertices[i] *= mResolution * 2;
     // mMeshVertices[i] += mResolution * 0.5f;
@@ -71,8 +124,8 @@ void VMesh::Model::loadModel(const std::string& pPath) {
     // mMeshVertices[i] += mResolution * 0.5f;
   }
 
-  for (uint i = 0; i < mTriangleCount; ++i) { // Every triangle
-    std::println("Tri: {}", i);
+  for (uint i = 0; i < mTriCount; ++i) { // Every triangle
+    // std::println("Tri: {}", i);
     // Add points to array
     std::array<glm::vec3, 3> points;
     for (uint j = 0; j < 3; ++j) {
@@ -207,25 +260,36 @@ void VMesh::Model::loadModel(const std::string& pPath) {
       glm::vec2 dir = l2Pos - l1Pos; // Dir from l1 to l2 intersection points
       glm::vec2 dirInv = 1.f/dir;
 
-      std::println("l1Pos: {}, {}, l2Pos: {}, {}", l1Pos.x, l1Pos.y, l2Pos.x, l2Pos.y);
+      // std::println("l1Pos: {}, {}, l2Pos: {}, {}", l1Pos.x, l1Pos.y, l2Pos.x, l2Pos.y);
 
-      drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv);
+      drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv, pInsertFunc);
     }
 
-    if (mTriangleCount > 100) {
-      ++countSinceLastPrint;
-      if (countSinceLastPrint > progressDelay) {
-        printProgressBar((i + 1) * triangleCountInv, "Voxelizing:");
-        countSinceLastPrint = 0;
+    ++mTrisComplete;
+  }
+}
+
+std::vector<std::vector<std::vector<bool>>> VMesh::Model::getVoxelData() {
+  return mVoxelGrid;
+}
+
+std::vector<uint> VMesh::Model::generateCompressedVoxelData() {
+  std::vector<uint> counts;
+  uint count = 0;
+  bool value = false;
+  for (uint x = 0; x < mResolution; ++x) {
+    for (uint y = 0; y < mResolution; ++y) {
+      for (uint z = 0; z < mResolution; ++z) {
+        if (mVoxelGrid[x][y][z] != value) {
+          // Write count
+          counts.push_back(count);
+          value = !value;
+        }
+        ++count;
       }
     }
   }
-
-#ifndef _DEBUG
-  mMeshVertices.clear();
-  mMeshIndices.clear();
-  mVoxelGrid.clear();
-#endif
+  return counts;
 }
 
 void VMesh::Model::processNode(aiNode* pNode, const aiScene* pScene) {
@@ -258,21 +322,22 @@ void VMesh::Model::processMesh(aiMesh* pMesh, const aiScene* pScene) {
   }
 }
 
-void VMesh::Model::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv) {
+void VMesh::Model::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, const insertFunc_t& pInsertFunction) {
   glm::vec3 v = glm::floor(toVec3(pDominantAxisValue, pStart.x, pStart.y, pDominantAxisIndex));
-  insertCallback(v);
+
+  insert(v, pInsertFunction);
 
   glm::vec2 voxelPos = glm::floor(pStart);
 
   while (voxelPos != glm::floor(pEnd)) {
-    std::println("voxelPos: {}, {}, l2pos: {}, {}, signDirInv: {}, {}", voxelPos.x, voxelPos.y, pEnd.x, pEnd.y, glm::sign(pDirInv.x), glm::sign(pDirInv.y));
+    // std::println("voxelPos: {}, {}, l2pos: {}, {}, signDirInv: {}, {}", voxelPos.x, voxelPos.y, pEnd.x, pEnd.y, glm::sign(pDirInv.x), glm::sign(pDirInv.y));
     float plane1 = voxelPos.x + std::max(0.f, glm::sign(pDirInv.x));
     float plane2 = voxelPos.y + std::max(0.f, glm::sign(pDirInv.y));
 
     if (plane1 == pEnd.x && plane2 == pEnd.y) { // If the destination point lies exactly on the planes we increment both x and y
       voxelPos += glm::sign(pDirInv);
       v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
-      insertCallback(v);
+      insert(v, pInsertFunction);
       break;
     }
     
@@ -286,7 +351,7 @@ void VMesh::Model::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValu
 
     v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
 
-    insertCallback(v);
+    insert(v, pInsertFunction);
   }
 
   // std::println("Started");

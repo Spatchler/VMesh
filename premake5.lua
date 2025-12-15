@@ -32,10 +32,10 @@ workspace "main"
         defines {"_WINDOWS"}
 
 outputdir = "%{cfg.buildcfg}/%{cfg.system}/%{cfg.architectrure}"
-project "voxelization"
+project "VMesh"
     kind "StaticLib"
     language "C++"
-    targetname "voxelization"
+    targetname "VMesh"
     targetdir ("bin/" .. outputdir)
     objdir ("bin-int/" .. outputdir)
 
@@ -57,8 +57,6 @@ project "voxelization"
     }
 
     links {
-        "assimp",
-        "pthread",
-        "dl",
+        "assimp"
     }
 

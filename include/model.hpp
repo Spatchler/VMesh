@@ -1,6 +1,9 @@
 #pragma once
 
-#include "helpers.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+// #include <glm/gtc/type_ptr.hpp>
+
 #include "timer.hpp"
 
 #include <assimp/Importer.hpp>
@@ -9,30 +12,59 @@
 
 #include <string>
 #include <functional>
+#include <sstream>
+#include <iostream>
+#include <future>
 
 namespace VMesh {
+  float v3index(glm::tvec3<float> v, uint8_t i);
+
+  typedef std::function<void(float,float,float)> insertFunc_t;
+
   class Model {
   public:
-    Model(const std::string& pPath, float pScaleFactor);
+    Model() = default;
+    Model(const std::string& pPath, const uint& pResolution, const insertFunc_t& pInsertFunc = [](...){});
 
-    std::function<void(glm::vec3)> insertCallback;
+    void load(const std::string& pPath, const uint& pResolution, const insertFunc_t& pInsertFunc = [](...){});
 
-    uint getTriangleCount();
-    float getScaleFactor();
+    void loadMeshData(const std::string& pPath);
+
+    void transformMeshVertices(const glm::mat3& pM);
+
+    uint getTriCount();
+    uint getVoxelCount();
+
+    float getProgress();
+
+    void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
+
+    int insert(const glm::vec3& pPos, const insertFunc_t& pInsertFunc = [](...){});
+
+    void generateVoxelData(uint pResolution, const insertFunc_t& pInsertFunc = [](...){});
+
+    std::vector<std::vector<std::vector<bool>>> getVoxelData();
+    std::vector<uint> generateCompressedVoxelData();
+
+    std::mutex mDefaultLogMutex;
   protected:
-    void loadModel(const std::string& pPath);
     void processNode(aiNode* pNode, const aiScene* pScene);
     void processMesh(aiMesh* pMesh, const aiScene* pScene);
 
     static glm::vec3 toVec3(float a, float b, float c, uint8_t pDominantAxisIndex);
 
-    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv);
+    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, const insertFunc_t& pInsertFunc);
+
+    std::ostream* mLogStream;
+    std::mutex* mLogMutex;
 
     std::vector<glm::vec3> mMeshVertices;
     std::vector<uint> mMeshIndices;
 
-    uint mTriangleCount;
-    float mScaleFactor;
+    std::vector<std::vector<std::vector<bool>>> mVoxelGrid;
+
+    float mTriCountInv;
+    uint mResolution, mVoxelCount, mTriCount, mTrisComplete;
   };
 }
 
