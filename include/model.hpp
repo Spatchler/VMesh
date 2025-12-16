@@ -43,7 +43,9 @@ namespace VMesh {
 
     void generateVoxelData(uint pResolution, const insertFunc_t& pInsertFunc = [](...){});
 
-    std::vector<std::vector<std::vector<bool>>> getVoxelData();
+    const std::vector<glm::vec3>& getMeshVertices();
+    const std::vector<uint>& getMeshIndices();
+    const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
     std::vector<uint> generateCompressedVoxelData();
 
     std::mutex mDefaultLogMutex;

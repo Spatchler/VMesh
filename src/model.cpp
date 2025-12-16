@@ -269,7 +269,14 @@ void VMesh::Model::generateVoxelData(uint pResolution, const insertFunc_t& pInse
   }
 }
 
-std::vector<std::vector<std::vector<bool>>> VMesh::Model::getVoxelData() {
+const std::vector<glm::vec3>& VMesh::Model::getMeshVertices() {
+  return mMeshVertices;
+}
+const std::vector<uint>& VMesh::Model::getMeshIndices() {
+  return mMeshIndices;
+}
+
+const std::vector<std::vector<std::vector<bool>>>& VMesh::Model::getVoxelData() {
   return mVoxelGrid;
 }
 
