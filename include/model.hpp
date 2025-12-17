@@ -30,7 +30,7 @@ namespace VMesh {
 
     void loadMeshData(const std::string& pPath);
 
-    void transformMeshVertices(const glm::mat3& pM);
+    void transformMeshVertices(const glm::mat4& pM);
 
     uint getTriCount();
     uint getVoxelCount();

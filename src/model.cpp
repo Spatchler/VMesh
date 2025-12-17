@@ -37,9 +37,9 @@ void VMesh::Model::loadMeshData(const std::string& pPath) {
   mTriCountInv = 1.f/mTriCount;
 }
 
-void VMesh::Model::transformMeshVertices(const glm::mat3& pM) {
+void VMesh::Model::transformMeshVertices(const glm::mat4& pM) {
   for (uint i = 0; i < mMeshVertices.size(); ++i) {
-    mMeshVertices[i] = pM * mMeshVertices[i];
+    mMeshVertices[i] = glm::vec3(pM * glm::vec4(mMeshVertices[i], 1));
   }
 }
 
@@ -64,9 +64,9 @@ void VMesh::Model::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
 }
 
 int VMesh::Model::insert(const glm::vec3& pPos, const insertFunc_t& pInsertFunc) {
-  if (pPos.x < 0 || pPos.x > mResolution ||
-      pPos.y < 0 || pPos.y > mResolution ||
-      pPos.z < 0 || pPos.z > mResolution) {
+  if (pPos.x < 0 || pPos.x >= mResolution ||
+      pPos.y < 0 || pPos.y >= mResolution ||
+      pPos.z < 0 || pPos.z >= mResolution) {
     std::lock_guard<std::mutex> lock(*mLogMutex);
     std::println(*mLogStream, "Couldn't insert voxel: {}, {}, {}. Reason: voxel outside grid", pPos.x, pPos.y, pPos.z);
     return 1;
