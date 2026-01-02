@@ -13,14 +13,17 @@ float v3index(glm::tvec3<float> v, uint8_t i) {
 }
 
 VoxelGrid::VoxelGrid(uint pResolution)
-:mResolution(pResolution) {
-  // Init mVoxelGrid
+:mResolution(pResolution), mVolume(pResolution * pResolution * pResolution) {
+  // Init mVoxelGrid and mVoxelData
   mVoxelGrid = std::vector<std::vector<std::vector<bool>>>(pResolution, std::vector<std::vector<bool>>(pResolution, std::vector<bool>(pResolution, false)));
+
+  mVoxelData = std::vector<char>(mVolume >> 3, 0);
 }
 
 void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFunc_t& pInsertFunc) {
   const std::vector<glm::vec3>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
+
   for (uint i = 0; i < pMesh.getTriCount(); ++i) { // Every triangle
     // Add points to array
     std::array<glm::vec3, 3> points;
@@ -150,36 +153,42 @@ void VoxelGrid::writeToFile(const std::string& pPath) {
   openFileWrite(fout, pPath);
   writeMetaData(fout);
 
-  char data = 0;
-  uint count = 0;
-  for (uint x = 0u; x < mResolution; ++x) {
-    for (uint y = 0u; y < mResolution; ++y) {
-      for (uint z = 0u; z < mResolution; ++z) {
-        if (count == 7) {
-          // When the byte fills up write it to the file and reset
-          fout.write(reinterpret_cast<char*>(&data), sizeof(data));
-          data = 0;
-          count = 0;
-        }
-        if (mVoxelGrid[x][y][z]) {
-          // If the voxel is true write a positive bit a index 'count'
-          char mask = 1 << count;
-          data = data | mask;
-        }
-        ++count;
-      }
-    }
-  }
+  // char byte = 0;
+  // uint count = 0;
+  // std::vector<char> bytes;
+  // for (uint x = 0u; x < mResolution; ++x) {
+  //   for (uint y = 0u; y < mResolution; ++y) {
+  //     for (uint z = 0u; z < mResolution; ++z) {
+  //       if (count == 7) {
+  //         // When the byte fills up write it to the file and reset
+  //         fout.write(&byte, 1);
+  //         // bytes.push_back(byte);
+  //         byte = 0;
+  //         count = 0;
+  //       }
+  //       if (mVoxelGrid[x][y][z]) {
+  //         // If the voxel is true write a positive bit a index 'count'
+  //         char mask = 1 << count;
+  //         byte = byte | mask;
+  //       }
+  //       ++count;
+  //     }
+  //   }
+  // }
+
+  // fout.write(&bytes.at(0), bytes.size());
+
+  fout.write(&mVoxelData.at(0), mVoxelData.size());
 
   fout.close();
 }
 
-void VoxelGrid::writeToFileCompressed(const std::string& pPath) {
+void VoxelGrid::writeToFileCompressed(const std::string& pPath, uint* pVoxelsComplete) {
   std::ofstream fout;
   openFileWrite(fout, pPath);
   writeMetaData(fout);
 
-  std::vector<uint> compressedData = generateCompressedVoxelData();
+  std::vector<uint> compressedData = generateCompressedVoxelData(pVoxelsComplete);
   fout.write(reinterpret_cast<char*>(&compressedData.at(0)), compressedData.size() * sizeof(uint));
 
   fout.close();
@@ -206,6 +215,12 @@ int VoxelGrid::insert(const glm::vec3& pPos, const insertFunc_t& pInsertFunc) {
     ++mVoxelCount;
     pInsertFunc(pPos.x, pPos.y, pPos.z);
     mVoxelGrid[pPos.x][pPos.y][pPos.z] = true;
+
+    uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
+    uint byteIndex = globalIndex >> 3;
+    uint localIndex = globalIndex | 0b00000111;
+    char mask = 1 << localIndex;
+    mVoxelData[byteIndex] = mVoxelData[byteIndex] | mask;
   }
   return 0;
 }
@@ -214,14 +229,25 @@ uint VoxelGrid::getVoxelCount() {
   return mVoxelCount;
 }
 
+uint VoxelGrid::getVolume() {
+  return mVolume;
+}
+
 const std::vector<std::vector<std::vector<bool>>>& VoxelGrid::getVoxelData() {
   return mVoxelGrid;
 }
 
-std::vector<uint> VoxelGrid::generateCompressedVoxelData() {
+const std::vector<char>& VoxelGrid::getVoxelDataBits() {
+  return mVoxelData;
+}
+
+std::vector<uint> VoxelGrid::generateCompressedVoxelData(uint* pVoxelsComplete) {
   std::vector<uint> counts;
   uint count = 0;
   bool value = false;
+  for (uint i = 0; i < mVoxelData.size(); ++i) {
+    if ()
+  }
   for (uint x = 0; x < mResolution; ++x) {
     for (uint y = 0; y < mResolution; ++y) {
       for (uint z = 0; z < mResolution; ++z) {
@@ -229,8 +255,10 @@ std::vector<uint> VoxelGrid::generateCompressedVoxelData() {
           // Write count
           counts.push_back(count);
           value = !value;
+          count = 0;
         }
         ++count;
+        ++*pVoxelsComplete;
       }
     }
   }

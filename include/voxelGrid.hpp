@@ -17,18 +17,20 @@ namespace VMesh {
   public:
     VoxelGrid(uint pResolution);
 
-    void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete = NULL, const insertFunc_t& pInsertFunc = [](...){});
+    void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete , const insertFunc_t& pInsertFunc = [](...){});
 
     void writeToFile(const std::string& pPath);
-    void writeToFileCompressed(const std::string& pPath);
+    void writeToFileCompressed(const std::string& pPath, uint* pVoxelsComplete);
 
     void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
 
     int insert(const glm::vec3& pPos, const insertFunc_t& pInsertFunc = [](...){});
 
     uint getVoxelCount();
+    uint getVolume();
     const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
-    std::vector<uint> generateCompressedVoxelData();
+    const std::vector<char>& getVoxelDataBits();
+    std::vector<uint> generateCompressedVoxelData(uint* pVoxelsComplete);
 
     std::mutex mDefaultLogMutex;
   protected:
@@ -43,8 +45,9 @@ namespace VMesh {
     std::mutex* mLogMutex;
 
     std::vector<std::vector<std::vector<bool>>> mVoxelGrid;
+    std::vector<char> mVoxelData;
     
-    uint mResolution, mVoxelCount = 0;
+    uint mResolution, mVoxelCount, mVolume = 0;
   };
 }
 

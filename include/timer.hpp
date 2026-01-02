@@ -46,7 +46,7 @@ namespace VMesh {
   public:
     Timer() {}
 
-    std::chrono::duration<double> getTime() { return 0.0f; }
+    std::chrono::duration<double> getTime() { return 0.0; }
 
     void start(const std::string& pName) {}
 
