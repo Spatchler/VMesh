@@ -53,7 +53,7 @@ project "VMesh"
     includedirs {
         "include",
         "deps/include",
-        --"/usr/include"
+        "/usr/include"
     }
 
     links {

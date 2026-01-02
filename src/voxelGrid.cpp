@@ -2,16 +2,6 @@
 
 using namespace VMesh;
 
-float v3index(glm::tvec3<float> v, uint8_t i) {
-  if (i == 0)
-    return v.x;
-  if (i == 1)
-    return v.y;
-  if (i == 2)
-    return v.z;
-  return 0.f;
-}
-
 VoxelGrid::VoxelGrid(uint pResolution)
 :mResolution(pResolution), mVolume(pResolution * pResolution * pResolution) {
   // Init mVoxelGrid and mVoxelData
@@ -245,9 +235,6 @@ std::vector<uint> VoxelGrid::generateCompressedVoxelData(uint* pVoxelsComplete) 
   std::vector<uint> counts;
   uint count = 0;
   bool value = false;
-  for (uint i = 0; i < mVoxelData.size(); ++i) {
-    if ()
-  }
   for (uint x = 0; x < mResolution; ++x) {
     for (uint y = 0; y < mResolution; ++y) {
       for (uint z = 0; z < mResolution; ++z) {

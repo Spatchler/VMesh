@@ -9,7 +9,15 @@
 #include <functional>
 
 namespace VMesh {
-  float v3index(glm::tvec3<float> v, uint8_t i);
+  constexpr float v3index(glm::tvec3<float> v, uint8_t i) {
+    if (i == 0)
+      return v.x;
+    if (i == 1)
+      return v.y;
+    if (i == 2)
+      return v.z;
+    return 0.f;
+  }
 
   typedef std::function<void(float,float,float)> insertFunc_t;
 
