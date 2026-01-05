@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <functional>
+#include <bitset>
 
 namespace VMesh {
   constexpr float v3index(glm::tvec3<float> v, uint8_t i) {
@@ -30,18 +31,25 @@ namespace VMesh {
     void writeToFile(const std::string& pPath);
     void writeToFileCompressed(const std::string& pPath, uint* pVoxelsComplete);
 
+    void loadFromFile(const std::string& pPath);
+    void loadFromFileCompressed(const std::string& pPath);
+
     void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
 
-    int insert(const glm::vec3& pPos, const insertFunc_t& pInsertFunc = [](...){});
+    int insert(const glm::tvec3<uint>& pPos, const insertFunc_t& pInsertFunc = [](...){});
 
     uint getVoxelCount();
     uint getVolume();
+    uint getResolution();
+    float getMaxDepth();
     const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
     const std::vector<char>& getVoxelDataBits();
     std::vector<uint> generateCompressedVoxelData(uint* pVoxelsComplete);
 
     std::mutex mDefaultLogMutex;
   protected:
+    void init();
+
     void openFileWrite(std::ofstream& pFout, const std::string& pPath);
     void writeMetaData(std::ofstream& pFout);
 
@@ -56,6 +64,7 @@ namespace VMesh {
     std::vector<char> mVoxelData;
     
     uint mResolution, mVoxelCount, mVolume = 0;
+    float mMaxDepth = 0;
   };
 }
 

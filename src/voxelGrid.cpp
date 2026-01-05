@@ -3,11 +3,8 @@
 using namespace VMesh;
 
 VoxelGrid::VoxelGrid(uint pResolution)
-:mResolution(pResolution), mVolume(pResolution * pResolution * pResolution) {
-  // Init mVoxelGrid and mVoxelData
-  mVoxelGrid = std::vector<std::vector<std::vector<bool>>>(pResolution, std::vector<std::vector<bool>>(pResolution, std::vector<bool>(pResolution, false)));
-
-  mVoxelData = std::vector<char>(mVolume >> 3, 0);
+:mResolution(pResolution) {
+  init();
 }
 
 void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFunc_t& pInsertFunc) {
@@ -143,31 +140,6 @@ void VoxelGrid::writeToFile(const std::string& pPath) {
   openFileWrite(fout, pPath);
   writeMetaData(fout);
 
-  // char byte = 0;
-  // uint count = 0;
-  // std::vector<char> bytes;
-  // for (uint x = 0u; x < mResolution; ++x) {
-  //   for (uint y = 0u; y < mResolution; ++y) {
-  //     for (uint z = 0u; z < mResolution; ++z) {
-  //       if (count == 7) {
-  //         // When the byte fills up write it to the file and reset
-  //         fout.write(&byte, 1);
-  //         // bytes.push_back(byte);
-  //         byte = 0;
-  //         count = 0;
-  //       }
-  //       if (mVoxelGrid[x][y][z]) {
-  //         // If the voxel is true write a positive bit a index 'count'
-  //         char mask = 1 << count;
-  //         byte = byte | mask;
-  //       }
-  //       ++count;
-  //     }
-  //   }
-  // }
-
-  // fout.write(&bytes.at(0), bytes.size());
-
   fout.write(&mVoxelData.at(0), mVoxelData.size());
 
   fout.close();
@@ -184,6 +156,37 @@ void VoxelGrid::writeToFileCompressed(const std::string& pPath, uint* pVoxelsCom
   fout.close();
 }
 
+void VoxelGrid::loadFromFile(const std::string& pPath) {
+  // Open file
+  std::ifstream fin;
+  fin.open(pPath, std::ios::binary | std::ios::in);
+  
+  // Read resolution
+  fin.read(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
+
+  init();
+  
+  // Load
+  char byte;
+  uint i = 0;
+  glm::tvec3<uint> pos;
+  while (fin.read(&byte, 1)) {
+    for (uint bitIndex = 0; bitIndex < 8; ++bitIndex, ++i, byte >>= 1) {
+      pos.z = i / (mResolution * mResolution);
+      pos.y = (i / mResolution) % mResolution;
+      pos.x = i % mResolution;
+      if (byte & 1)
+        insert(pos);
+    }
+  }
+
+  fin.close();
+}
+
+void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
+  return;
+}
+
 void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
   if (!pMutex)
     mLogMutex = &mDefaultLogMutex;
@@ -192,7 +195,7 @@ void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
   mLogStream = pStream;
 }
 
-int VoxelGrid::insert(const glm::vec3& pPos, const insertFunc_t& pInsertFunc) {
+int VoxelGrid::insert(const glm::tvec3<uint>& pPos, const insertFunc_t& pInsertFunc) {
   if (pPos.x < 0 || pPos.x >= mResolution ||
       pPos.y < 0 || pPos.y >= mResolution ||
       pPos.z < 0 || pPos.z >= mResolution) {
@@ -208,9 +211,9 @@ int VoxelGrid::insert(const glm::vec3& pPos, const insertFunc_t& pInsertFunc) {
 
     uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
     uint byteIndex = globalIndex >> 3;
-    uint localIndex = globalIndex | 0b00000111;
+    uint localIndex = globalIndex & 0b111;
     char mask = 1 << localIndex;
-    mVoxelData[byteIndex] = mVoxelData[byteIndex] | mask;
+    mVoxelData[byteIndex] |= mask;
   }
   return 0;
 }
@@ -221,6 +224,14 @@ uint VoxelGrid::getVoxelCount() {
 
 uint VoxelGrid::getVolume() {
   return mVolume;
+}
+
+uint VoxelGrid::getResolution() {
+  return mResolution;
+}
+
+float VoxelGrid::getMaxDepth() {
+  return mMaxDepth;
 }
 
 const std::vector<std::vector<std::vector<bool>>>& VoxelGrid::getVoxelData() {
@@ -250,6 +261,19 @@ std::vector<uint> VoxelGrid::generateCompressedVoxelData(uint* pVoxelsComplete) 
     }
   }
   return counts;
+}
+
+void VoxelGrid::init() {
+  mVolume = mResolution * mResolution * mResolution;
+  mMaxDepth = std::log2f(mResolution);
+
+  mVoxelGrid.clear();
+  mVoxelData.clear();
+
+  // Init mVoxelGrid and mVoxelData
+  mVoxelGrid = std::vector<std::vector<std::vector<bool>>>(mResolution, std::vector<std::vector<bool>>(mResolution, std::vector<bool>(mResolution, false)));
+
+  mVoxelData = std::vector<char>(mVolume >> 3, 0);
 }
 
 void VoxelGrid::openFileWrite(std::ofstream& pFout, const std::string& pPath) {
