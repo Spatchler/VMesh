@@ -47,6 +47,7 @@ namespace VMesh {
     std::vector<uint> generateCompressedVoxelData(uint* pVoxelsComplete);
 
     std::mutex mDefaultLogMutex;
+    std::stringstream mDefaultLogStream;
   protected:
     void init();
 

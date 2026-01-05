@@ -4,6 +4,8 @@ using namespace VMesh;
 
 VoxelGrid::VoxelGrid(uint pResolution)
 :mResolution(pResolution) {
+  mLogStream = &mDefaultLogStream;
+  mLogMutex = &mDefaultLogMutex;
   init();
 }
 
