@@ -29,7 +29,7 @@ namespace VMesh {
     void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete , const insertFunc_t& pInsertFunc = [](...){});
 
     void writeToFile(const std::string& pPath);
-    void writeToFileCompressed(const std::string& pPath, uint* pVoxelsComplete);
+    void writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete);
 
     void loadFromFile(const std::string& pPath);
     void loadFromFileCompressed(const std::string& pPath);
@@ -38,13 +38,13 @@ namespace VMesh {
 
     int insert(const glm::tvec3<uint>& pPos, const insertFunc_t& pInsertFunc = [](...){});
 
-    uint getVoxelCount();
-    uint getVolume();
+    uint64_t getVoxelCount();
+    uint64_t getVolume();
     uint getResolution();
     float getMaxDepth();
     const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
     const std::vector<char>& getVoxelDataBits();
-    std::vector<uint> generateCompressedVoxelData(uint* pVoxelsComplete);
+    std::vector<uint64_t> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
 
     std::mutex mDefaultLogMutex;
     std::stringstream mDefaultLogStream;
@@ -64,7 +64,8 @@ namespace VMesh {
     std::vector<std::vector<std::vector<bool>>> mVoxelGrid;
     std::vector<char> mVoxelData;
     
-    uint mResolution, mVoxelCount, mVolume = 0;
+    uint mResolution = 0;
+    uint64_t mVolume = 0, mVoxelCount = 0;
     float mMaxDepth = 0;
   };
 }

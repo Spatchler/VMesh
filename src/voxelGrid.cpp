@@ -147,13 +147,13 @@ void VoxelGrid::writeToFile(const std::string& pPath) {
   fout.close();
 }
 
-void VoxelGrid::writeToFileCompressed(const std::string& pPath, uint* pVoxelsComplete) {
+void VoxelGrid::writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete) {
   std::ofstream fout;
   openFileWrite(fout, pPath);
   writeMetaData(fout);
 
-  std::vector<uint> compressedData = generateCompressedVoxelData(pVoxelsComplete);
-  fout.write(reinterpret_cast<char*>(&compressedData.at(0)), compressedData.size() * sizeof(uint));
+  std::vector<uint64_t> compressedData = generateCompressedVoxelData(pVoxelsComplete);
+  fout.write(reinterpret_cast<char*>(&compressedData.at(0)), compressedData.size() * sizeof(uint64_t));
 
   fout.close();
 }
@@ -220,11 +220,11 @@ int VoxelGrid::insert(const glm::tvec3<uint>& pPos, const insertFunc_t& pInsertF
   return 0;
 }
 
-uint VoxelGrid::getVoxelCount() {
+uint64_t VoxelGrid::getVoxelCount() {
   return mVoxelCount;
 }
 
-uint VoxelGrid::getVolume() {
+uint64_t VoxelGrid::getVolume() {
   return mVolume;
 }
 
@@ -244,9 +244,9 @@ const std::vector<char>& VoxelGrid::getVoxelDataBits() {
   return mVoxelData;
 }
 
-std::vector<uint> VoxelGrid::generateCompressedVoxelData(uint* pVoxelsComplete) {
-  std::vector<uint> counts;
-  uint count = 0;
+std::vector<uint64_t> VoxelGrid::generateCompressedVoxelData(uint64_t* pVoxelsComplete) {
+  std::vector<uint64_t> counts;
+  uint64_t count = 0;
   bool value = false;
   for (uint x = 0; x < mResolution; ++x) {
     for (uint y = 0; y < mResolution; ++y) {
@@ -266,7 +266,8 @@ std::vector<uint> VoxelGrid::generateCompressedVoxelData(uint* pVoxelsComplete) 
 }
 
 void VoxelGrid::init() {
-  mVolume = mResolution * mResolution * mResolution;
+  uint64_t res = mResolution;
+  mVolume = res * res * res;
   mMaxDepth = std::log2f(mResolution);
 
   mVoxelGrid.clear();
