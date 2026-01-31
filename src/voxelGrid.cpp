@@ -13,7 +13,7 @@ void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFunc_
   const std::vector<glm::vec3>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
-  for (uint i = 0; i < pMesh.getTriCount(); ++i) { // Every triangle
+  for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
     // Add points to array
     std::array<glm::vec3, 3> points;
     for (uint j = 0; j < 3; ++j)
@@ -42,6 +42,11 @@ void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFunc_
     if (v3index(points[0], dominantAxisIndex) > v3index(points[1], dominantAxisIndex)) std::swap(points[0], points[1]);
     if (v3index(points[1], dominantAxisIndex) > v3index(points[2], dominantAxisIndex)) std::swap(points[1], points[2]);
     if (v3index(points[0], dominantAxisIndex) > v3index(points[1], dominantAxisIndex)) std::swap(points[0], points[1]);
+
+    if (points[0] == points[1] && points[0] == points[2]) {
+      insert(glm::floor(points[0]), pInsertFunc);
+      continue;
+    }
 
     // Calculate direction and inverse for lines
     glm::vec3 lhDir = points[2] - points[0];
@@ -132,8 +137,6 @@ void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFunc_
 
       drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv, pInsertFunc);
     }
-
-    ++*pTrisComplete;
   }
 }
 
@@ -291,6 +294,7 @@ void VoxelGrid::writeMetaData(std::ofstream& pFout) {
 }
 
 void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, const insertFunc_t& pInsertFunction) {
+  // std::println("Started drawLine2");
   glm::vec3 v = glm::floor(toVec3(pDominantAxisValue, pStart.x, pStart.y, pDominantAxisIndex));
 
   insert(v, pInsertFunction);
@@ -298,7 +302,7 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
   glm::vec2 voxelPos = glm::floor(pStart);
 
   while (voxelPos != glm::floor(pEnd)) {
-    // std::println("voxelPos: {}, {}, l2pos: {}, {}, signDirInv: {}, {}", voxelPos.x, voxelPos.y, pEnd.x, pEnd.y, glm::sign(pDirInv.x), glm::sign(pDirInv.y));
+    // std::println("voxelPos: ({}, {}), l1Pos: ({}, {}), l2pos: ({}, {}), signDirInv: ({}, {})", voxelPos.x, voxelPos.y, pStart.x, pStart.y, pEnd.x, pEnd.y, glm::sign(pDirInv.x), glm::sign(pDirInv.y));
     float plane1 = voxelPos.x + std::max(0.f, glm::sign(pDirInv.x));
     float plane2 = voxelPos.y + std::max(0.f, glm::sign(pDirInv.y));
 
