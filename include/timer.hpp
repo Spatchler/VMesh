@@ -20,7 +20,7 @@ namespace VMesh {
     }
 
     void stop() {
-      std::println("'{0}' timer stopped: {1}", mName, getTime().count());
+      std::println("'{0}' timer stopped: {1}", mName, getTime());
     }
 
   protected:

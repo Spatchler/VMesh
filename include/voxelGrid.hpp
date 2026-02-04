@@ -10,14 +10,14 @@
 #include <bitset>
 
 namespace VMesh {
-  constexpr float v3index(glm::tvec3<float> v, uint8_t i) {
+  constexpr float& v3index(glm::tvec3<float>& v, uint8_t i) {
     if (i == 0)
       return v.x;
     if (i == 1)
       return v.y;
     if (i == 2)
       return v.z;
-    return 0.f;
+    return v.x;
   }
 
   typedef std::function<void(float,float,float)> insertFunc_t;
@@ -26,7 +26,8 @@ namespace VMesh {
   public:
     VoxelGrid(uint pResolution);
 
-    void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete , const insertFunc_t& pInsertFunc = [](...){});
+    void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
+    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete , const insertFunc_t& pInsertFunc = [](...){});
 
     void writeToFile(const std::string& pPath);
     void writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete);
@@ -42,7 +43,8 @@ namespace VMesh {
     uint64_t getVolume();
     uint getResolution();
     float getMaxDepth();
-    const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
+    bool queryVoxel(const glm::tvec3<uint>& pPos);
+    // const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
     const std::vector<char>& getVoxelDataBits();
     std::vector<uint64_t> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
 
@@ -50,6 +52,16 @@ namespace VMesh {
     std::stringstream mDefaultLogStream;
   protected:
     void init();
+
+    bool triangleBoxIntersect(const std::array<glm::vec3, 3>& pTriPoints, const glm::vec3& pBoxOrigin);
+    bool planeBoxOverlap(glm::vec3& pNormal, glm::vec3& pVert);
+    void findMinMax(float& a, float& b, float& c, float& pMin, float& pMax);
+    bool axistestX01(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax);
+    bool axistestX2(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint1, float a, float b, float fa, float fb, float& pMin, float& pMax);
+    bool axistestY02(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax);
+    bool axistestY1(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint1, float a, float b, float fa, float fb, float& pMin, float& pMax);
+    bool axistestZ12(const glm::vec3& pTranslatedTriPoint1, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax);
+    bool axistestZ0(const glm::vec3& pTranslatedTriPoint1, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax);
 
     void openFileWrite(std::ofstream& pFout, const std::string& pPath);
     void writeMetaData(std::ofstream& pFout);
@@ -61,7 +73,7 @@ namespace VMesh {
     std::ostream* mLogStream;
     std::mutex* mLogMutex;
 
-    std::vector<std::vector<std::vector<bool>>> mVoxelGrid;
+    // std::vector<std::vector<std::vector<bool>>> mVoxelGrid;
     std::vector<char> mVoxelData;
     
     uint mResolution = 0;

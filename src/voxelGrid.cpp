@@ -9,7 +9,156 @@ VoxelGrid::VoxelGrid(uint pResolution)
   init();
 }
 
-void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFunc_t& pInsertFunc) {
+void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
+  const std::vector<glm::vec3>& verts = pMesh.getVertices();
+  const std::vector<uint>& indices = pMesh.getIndices();
+
+  std::array<glm::vec3, 3> points;
+
+  for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
+    // Add points to array
+    for (uint j = 0; j < 3; ++j)
+      points[j] = verts[indices[i*3+j]];
+
+    glm::vec3 minPoint = glm::min(points[0], glm::min(points[1], points[2]));
+    glm::vec3 maxPoint = glm::max(points[0], glm::max(points[1], points[2]));
+
+    for (glm::uvec3 pos = minPoint; pos.x <= maxPoint.x; ++pos.x) for (pos.y = minPoint.y; pos.y <= maxPoint.y; ++pos.y) for (pos.z = minPoint.z; pos.z <= maxPoint.z; ++pos.z) // Every block
+      if (!queryVoxel(pos))
+        if (triangleBoxIntersect(points, pos))
+          insert(pos);
+  }
+}
+
+bool VoxelGrid::triangleBoxIntersect(const std::array<glm::vec3, 3>& pTriPoints, const glm::vec3& pBoxOrigin) {
+  // Translate triangle so box is center o
+  glm::vec3 translatedTriPoint0 = pTriPoints[0] - pBoxOrigin;
+  glm::vec3 translatedTriPoint1 = pTriPoints[1] - pBoxOrigin;
+  glm::vec3 translatedTriPoint2 = pTriPoints[2] - pBoxOrigin;
+  // Compute triangle edges
+  glm::vec3 e0 = pTriPoints[1] - pTriPoints[0];
+  glm::vec3 e1 = pTriPoints[2] - pTriPoints[1];
+  glm::vec3 e2 = pTriPoints[0] - pTriPoints[2];
+  glm::vec3 fe = glm::abs(pTriPoints[1] - pTriPoints[0]);
+
+  float min, max;
+
+  if (axistestX01(translatedTriPoint0, translatedTriPoint2, e0.z, e0.y, fe.z, fe.y, min, max)) return false;
+  if (axistestY02(translatedTriPoint0, translatedTriPoint2, e0.z, e0.x, fe.z, fe.x, min, max)) return false;
+  if (axistestZ12(translatedTriPoint1, translatedTriPoint2, e0.y, e0.x, fe.y, fe.x, min, max)) return false;
+
+  fe = glm::abs(pTriPoints[2] - pTriPoints[1]);
+
+  if (axistestX01(translatedTriPoint0, translatedTriPoint2, e0.z, e0.y, fe.z, fe.y, min, max)) return false;
+  if (axistestY02(translatedTriPoint0, translatedTriPoint2, e0.z, e0.x, fe.z, fe.x, min, max)) return false;
+  if (axistestZ0(translatedTriPoint0, translatedTriPoint1, e0.y, e0.x, fe.y, fe.x, min, max)) return false;
+
+  fe = glm::abs(pTriPoints[0] - pTriPoints[2]);
+
+  if (axistestX2(translatedTriPoint0, translatedTriPoint1, e0.z, e0.y, fe.z, fe.y, min, max)) return false;
+  if (axistestY1(translatedTriPoint0, translatedTriPoint1, e0.z, e0.x, fe.z, fe.x, min, max)) return false;
+  if (axistestZ12(translatedTriPoint1, translatedTriPoint2, e0.y, e0.x, fe.y, fe.x, min, max)) return false;
+
+  // Test x
+  findMinMax(translatedTriPoint0.x, translatedTriPoint1.x, translatedTriPoint2.x, min, max);
+  if (min > 0.5f || max < -0.5f) return false;
+  // Text y
+  findMinMax(translatedTriPoint0.y, translatedTriPoint1.y, translatedTriPoint2.y, min, max);
+  if (min > 0.5f || max < -0.5f) return false;
+  // Test z
+  findMinMax(translatedTriPoint0.z, translatedTriPoint1.z, translatedTriPoint2.z, min, max);
+  if (min > 0.5f || max < -0.5f) return false;
+
+  // Test if the box intersects the plane of the triangle
+  glm::vec3 triNormal = glm::cross(e0, e1);
+  if (!planeBoxOverlap(triNormal, translatedTriPoint0)) return false;
+
+  return true; // Box and triangle overlap
+}
+
+bool VoxelGrid::planeBoxOverlap(glm::vec3& pNormal, glm::vec3& pVert) {
+  glm::vec3 vmin, vmax;
+  float v;
+  for (uint8_t i = 0; i <= 2; ++i) {
+    v = v3index(pVert, i);
+    if (v3index(pNormal, i) > 0.0f) {
+      v3index(vmin, i) = -0.5f - v;
+      v3index(vmax, i) =  0.5f - v;
+    }
+    else {
+      v3index(vmin, i) =  0.5f - v;
+      v3index(vmax, i) = -0.5f - v;
+    }
+  }
+  if (glm::dot(pNormal, vmin) >  0.0f) return false;
+  if (glm::dot(pNormal, vmax) >= 0.0f) return true;
+
+  return false;
+}
+
+void VoxelGrid::findMinMax(float& a, float& b, float& c, float& pMin, float& pMax) {
+  pMin = pMax = a;
+  if (b < pMin) pMin = b;
+  if (b > pMax) pMax = b;
+  if (c < pMin) pMin = c;
+  if (c > pMax) pMax = c;
+}
+
+bool VoxelGrid::axistestX01(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax) {
+  float p0 = a*pTranslatedTriPoint0.y - b*pTranslatedTriPoint0.z;
+  float p2 = a*pTranslatedTriPoint2.y - b*pTranslatedTriPoint2.z;
+  if (p0 < p2) { pMin=p0; pMax=p2; } else { pMin=p2; pMax=p0; }
+  float rad = fa * 0.5f + fb * 0.5f;
+  if (pMin > rad || pMax < -rad) return true;
+  return false;
+}
+
+bool VoxelGrid::axistestX2(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint1, float a, float b, float fa, float fb, float& pMin, float& pMax) {
+  float p0 = a*pTranslatedTriPoint0.y - b*pTranslatedTriPoint0.z;
+  float p1 = a*pTranslatedTriPoint1.y - b*pTranslatedTriPoint1.z;
+  if (p0 < p1) { pMin=p0; pMax=p1; } else { pMin=p1; pMax=p0; }
+  float rad = fa * 0.5f + fb * 0.5f;
+  if (pMin > rad || pMax < -rad) return true;
+  return false;
+}
+
+bool VoxelGrid::axistestY02(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax) {
+  float p0 = -a*pTranslatedTriPoint0.x + b*pTranslatedTriPoint0.z;
+  float p2 = -a*pTranslatedTriPoint2.x + b*pTranslatedTriPoint2.z;
+  if (p0 < p2) { pMin=p0; pMax=p2; } else { pMin=p2; pMax=p0; }
+  float rad = fa * 0.5f + fb * 0.5f;
+  if (pMin > rad || pMax < -rad) return true;
+  return false;
+}
+
+bool VoxelGrid::axistestY1(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint1, float a, float b, float fa, float fb, float& pMin, float& pMax) {
+  float p0 = -a*pTranslatedTriPoint0.x + b*pTranslatedTriPoint0.z;
+  float p1 = -a*pTranslatedTriPoint1.x + b*pTranslatedTriPoint1.z;
+  if (p0 < p1) { pMin=p0; pMax=p1; } else { pMin=p1; pMax=p0; }
+  float rad = fa * 0.5f + fb * 0.5f;
+  if (pMin > rad || pMax < -rad) return true;
+  return false;
+}
+
+bool VoxelGrid::axistestZ12(const glm::vec3& pTranslatedTriPoint1, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax) {
+  float p1 = a*pTranslatedTriPoint1.x - b*pTranslatedTriPoint1.y;
+  float p2 = a*pTranslatedTriPoint2.x - b*pTranslatedTriPoint2.y;
+  if (p2 < p1) { pMin=p2; pMax=p1; } else { pMin=p1; pMax=p2; }
+  float rad = fa * 0.5f + fb * 0.5f;
+  if (pMin > rad || pMax < -rad) return true;
+  return false;
+}
+
+bool VoxelGrid::axistestZ0(const glm::vec3& pTranslatedTriPoint0, const glm::vec3& pTranslatedTriPoint1, float a, float b, float fa, float fb, float& pMin, float& pMax) {
+  float p0 = a*pTranslatedTriPoint0.x - b*pTranslatedTriPoint0.y;
+  float p1 = a*pTranslatedTriPoint1.x - b*pTranslatedTriPoint1.y;
+  if (p0 < p1) { pMin=p0; pMax=p1; } else { pMin=p1; pMax=p0; }
+  float rad = fa * 0.5f + fb * 0.5f;
+  if (pMin > rad || pMax < -rad) return true;
+  return false;
+}
+
+void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFunc_t& pInsertFunc) {
   const std::vector<glm::vec3>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
@@ -172,18 +321,23 @@ void VoxelGrid::loadFromFile(const std::string& pPath) {
   init();
   
   // Load
-  char byte;
-  uint i = 0;
-  glm::tvec3<uint> pos;
-  while (fin.read(&byte, 1)) {
-    for (uint bitIndex = 0; bitIndex < 8; ++bitIndex, ++i, byte >>= 1) {
-      pos.z = i / (mResolution * mResolution);
-      pos.y = (i / mResolution) % mResolution;
-      pos.x = i % mResolution;
-      if (byte & 1)
-        insert(pos);
-    }
-  }
+  // mVoxelData.resize(mVolume / 8);
+  fin.read(&mVoxelData.at(0), mVolume / 8);
+  // char byte;
+  // std::println("Loaded file in {0}, decompressing...", t.getTime());
+  // uint i = 0;
+  // glm::tvec3<uint> pos;
+  // for (char byte: mVoxelData) {
+  // // while (fin.read(&byte, 1)) {
+  //   for (uint bitIndex = 0; bitIndex < 8; ++bitIndex, ++i, byte >>= 1) {
+  //     if (byte & 1) {
+  //       pos.z = i / (mResolution * mResolution);
+  //       pos.y = (i / mResolution) % mResolution;
+  //       pos.x = i % mResolution;
+  //       mVoxelGrid[pos.x][pos.y][pos.z] = true;
+  //     }
+  //   }
+  // }
 
   fin.close();
 }
@@ -209,17 +363,23 @@ int VoxelGrid::insert(const glm::tvec3<uint>& pPos, const insertFunc_t& pInsertF
     return 1;
   }
 
-  if (!mVoxelGrid[pPos.x][pPos.y][pPos.z]) {
+  uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
+  uint byteIndex = globalIndex >> 3;
+  uint localIndex = globalIndex & 0b111;
+  char mask = 1 << localIndex;
+  if (!(mVoxelData[byteIndex] & mask))
     ++mVoxelCount;
-    pInsertFunc(pPos.x, pPos.y, pPos.z);
-    mVoxelGrid[pPos.x][pPos.y][pPos.z] = true;
+  mVoxelData[byteIndex] |= mask;
+  // if (!queryVoxel[pPos.x][pPos.y][pPos.z]) {
+  //   // pInsertFunc(pPos.x, pPos.y, pPos.z);
+  //   // mVoxelGrid[pPos.x][pPos.y][pPos.z] = true;
 
-    uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
-    uint byteIndex = globalIndex >> 3;
-    uint localIndex = globalIndex & 0b111;
-    char mask = 1 << localIndex;
-    mVoxelData[byteIndex] |= mask;
-  }
+  //   uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
+  //   uint byteIndex = globalIndex >> 3;
+  //   uint localIndex = globalIndex & 0b111;
+  //   char mask = 1 << localIndex;
+  //   mVoxelData[byteIndex] |= mask;
+  // }
   return 0;
 }
 
@@ -239,9 +399,17 @@ float VoxelGrid::getMaxDepth() {
   return mMaxDepth;
 }
 
-const std::vector<std::vector<std::vector<bool>>>& VoxelGrid::getVoxelData() {
-  return mVoxelGrid;
+bool VoxelGrid::queryVoxel(const glm::tvec3<uint>& pPos) {
+  uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
+  uint byteIndex = globalIndex >> 3;
+  uint localIndex = globalIndex & 0b111;
+  char mask = 1 << localIndex;
+  return mVoxelData[byteIndex] & mask;
 }
+
+// const std::vector<std::vector<std::vector<bool>>>& VoxelGrid::getVoxelData() {
+  // return mVoxelGrid;
+// }
 
 const std::vector<char>& VoxelGrid::getVoxelDataBits() {
   return mVoxelData;
@@ -254,7 +422,7 @@ std::vector<uint64_t> VoxelGrid::generateCompressedVoxelData(uint64_t* pVoxelsCo
   for (uint x = 0; x < mResolution; ++x) {
     for (uint y = 0; y < mResolution; ++y) {
       for (uint z = 0; z < mResolution; ++z) {
-        if (mVoxelGrid[x][y][z] != value) {
+        if (queryVoxel(glm::vec3(x, y, z)) != value) {
           // Write count
           counts.push_back(count);
           value = !value;
@@ -273,11 +441,11 @@ void VoxelGrid::init() {
   mVolume = res * res * res;
   mMaxDepth = std::log2f(mResolution);
 
-  mVoxelGrid.clear();
+  // mVoxelGrid.clear();
   mVoxelData.clear();
 
   // Init mVoxelGrid and mVoxelData
-  mVoxelGrid = std::vector<std::vector<std::vector<bool>>>(mResolution, std::vector<std::vector<bool>>(mResolution, std::vector<bool>(mResolution, false)));
+  // mVoxelGrid = std::vector<std::vector<std::vector<bool>>>(mResolution, std::vector<std::vector<bool>>(mResolution, std::vector<bool>(mResolution, false)));
 
   mVoxelData = std::vector<char>(mVolume >> 3, 0);
 }
