@@ -2,11 +2,19 @@
 
 using namespace VMesh;
 
-VoxelGrid::VoxelGrid(uint pResolution)
-:mResolution(pResolution) {
+VoxelGrid::VoxelGrid(uint pResolution, glm::vec3 pOrigin)
+:mResolution(pResolution), mOrigin(pOrigin) {
   mLogStream = &mDefaultLogStream;
   mLogMutex = &mDefaultLogMutex;
   init();
+}
+
+void VoxelGrid::setOrigin(glm::vec3 pOrigin) {
+  mOrigin = pOrigin;
+}
+
+glm::vec3 VoxelGrid::getOrigin() {
+  return mOrigin;
 }
 
 void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
@@ -22,6 +30,12 @@ void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
 
     glm::vec3 minPoint = glm::min(points[0], glm::min(points[1], points[2]));
     glm::vec3 maxPoint = glm::max(points[0], glm::max(points[1], points[2]));
+
+    // minPoint = glm::floor(minPoint) - glm::vec3(1,1,1);
+    // maxPoint = glm::ceil(maxPoint) + glm::vec3(1,1,1);
+
+    // minPoint = glm::max(minPoint, mOrigin);
+    // maxPoint = glm::min(maxPoint, mOrigin + glm::vec3(mResolution));
 
     for (glm::uvec3 pos = minPoint; pos.x <= maxPoint.x; ++pos.x) for (pos.y = minPoint.y; pos.y <= maxPoint.y; ++pos.y) for (pos.z = minPoint.z; pos.z <= maxPoint.z; ++pos.z) // Every block
       if (!queryVoxel(pos))
@@ -165,8 +179,10 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
   for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
     // Add points to array
     std::array<glm::vec3, 3> points;
-    for (uint j = 0; j < 3; ++j)
+    for (uint j = 0; j < 3; ++j) {
       points[j] = verts[indices[i*3+j]];
+      points[j] = glm::max(mOrigin, glm::min(mOrigin + glm::vec3(mResolution), points[j]));
+    }
 
     // Find dominant axis
     glm::vec3 minPoint = glm::min(points[0], glm::min(points[1], points[2]));

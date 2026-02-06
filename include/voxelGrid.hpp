@@ -24,7 +24,10 @@ namespace VMesh {
 
   class VoxelGrid {
   public:
-    VoxelGrid(uint pResolution);
+    VoxelGrid(uint pResolution, glm::vec3 pOrigin = glm::vec3(0, 0, 0));
+
+    void setOrigin(glm::vec3 pOrigin);
+    glm::vec3 getOrigin();
 
     void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
     void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete , const insertFunc_t& pInsertFunc = [](...){});
@@ -76,6 +79,7 @@ namespace VMesh {
     // std::vector<std::vector<std::vector<bool>>> mVoxelGrid;
     std::vector<char> mVoxelData;
     
+    glm::vec3 mOrigin;
     uint mResolution = 0;
     uint64_t mVolume = 0, mVoxelCount = 0;
     float mMaxDepth = 0;
