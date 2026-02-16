@@ -7,37 +7,34 @@ namespace VMesh {
 #ifdef _PROFILING
   class Timer {
   public:
-    Timer() {}
+    Timer() {
+      start();
+    }
   
     std::chrono::duration<double> getTime() {
       return std::chrono::system_clock::now() - mStartTime;
     }
 
-    void start(const std::string& pName) {
-      mName = pName;
+    void start() {
       mStartTime = std::chrono::system_clock::now();
-      std::println("'{0}' timer started", mName);
     }
-
-    void stop() {
-      std::println("'{0}' timer stopped: {1}", mName, getTime());
-    }
-
   protected:
     std::chrono::time_point<std::chrono::system_clock> mStartTime;
-    std::string mName;
   };
 
   class ScopedTimer: public Timer {
   public:
     ScopedTimer(const std::string& pName) {
       mName = pName;
-      start(mName);
+      start();
+      std::println("'{0}' timer started", mName);
     }
   
     ~ScopedTimer() {
-      stop();
+      std::println("'{0}' timer stopped: {1}", mName, getTime());
     }
+  protected:
+    std::string mName;
   };
 #endif
 

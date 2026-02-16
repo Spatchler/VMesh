@@ -24,9 +24,9 @@ namespace VMesh {
 
   class VoxelGrid {
   public:
-    VoxelGrid(uint pResolution, glm::vec3 pOrigin = glm::vec3(0, 0, 0));
+    VoxelGrid(uint pResolution, glm::vec3 pOrigin = glm::vec3(0,0,0));
 
-    void setOrigin(glm::vec3 pOrigin);
+    void setOrigin(glm::vec3 pOrigin = glm::vec3(0,0,0));
     glm::vec3 getOrigin();
 
     void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete);

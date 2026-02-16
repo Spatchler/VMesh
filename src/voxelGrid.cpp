@@ -34,8 +34,8 @@ void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
     // minPoint = glm::floor(minPoint) - glm::vec3(1,1,1);
     // maxPoint = glm::ceil(maxPoint) + glm::vec3(1,1,1);
 
-    // minPoint = glm::max(minPoint, mOrigin);
-    // maxPoint = glm::min(maxPoint, mOrigin + glm::vec3(mResolution));
+    minPoint = glm::max(minPoint, mOrigin);
+    maxPoint = glm::min(maxPoint, mOrigin + glm::vec3(mResolution));
 
     for (glm::uvec3 pos = minPoint; pos.x <= maxPoint.x; ++pos.x) for (pos.y = minPoint.y; pos.y <= maxPoint.y; ++pos.y) for (pos.z = minPoint.z; pos.z <= maxPoint.z; ++pos.z) // Every block
       if (!queryVoxel(pos))
@@ -179,9 +179,79 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
   for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
     // Add points to array
     std::array<glm::vec3, 3> points;
-    for (uint j = 0; j < 3; ++j) {
-      points[j] = verts[indices[i*3+j]];
-      points[j] = glm::max(mOrigin, glm::min(mOrigin + glm::vec3(mResolution), points[j]));
+
+    std::array<bool, 3> isInside = {{false}};
+
+    for (uint8_t j = 0; j < 3; ++j) {
+      points[j] = verts[indices[i*3+j]] - mOrigin;
+      isInside[j] = points[j] == glm::max(glm::vec3(0), glm::min(glm::vec3(mResolution), points[j]));
+    }
+
+    // Check if all tri points are outside the grid
+    if (!isInside[0] && !isInside[1] && !isInside[2]) continue;
+
+    // Check if all points are the same
+    if (points[0] == points[1] && points[0] == points[2]) {
+      insert(glm::floor(points[0]), pInsertFunc);
+      continue;
+    }
+
+    // TODO: Rewrite this mess
+    for (uint8_t j = 0; j < 3; ++j) {
+      uint8_t a = (j + 1) % 3;
+      uint8_t b = (j + 2) % 3;
+      if (isInside[j] && !isInside[a] && !isInside[b]) { // One point inside
+        glm::vec3 l1Dir = points[j] - points[a];
+        glm::vec3 l2Dir = points[j] - points[b];
+        glm::vec3 l1DirInv = 1.f/l1Dir;
+        glm::vec3 l2DirInv = 1.f/l2Dir;
+        // L1 Intersections -------------------------------------------------------
+        glm::vec3 pt = (glm::vec3(mResolution) - points[a]) * l1DirInv;
+        glm::vec3 nt = (glm::vec3(0) - points[a]) * l1DirInv;
+        // Positive planes
+        if (pt.x < 1 && pt.x >= 0) points[a] = points[j] + l1Dir * pt.x;
+        else if (pt.y < 1 && pt.y >= 0) points[a] = points[j] + l1Dir * pt.y;
+        else if (pt.z < 1 && pt.z >= 0) points[a] = points[j] + l1Dir * pt.z;
+        // Negatives planes
+        else if (nt.x > -1 && nt.x <= 0) points[a] = points[j] + l1Dir * nt.x;
+        else if (nt.y > -1 && nt.y <= 0) points[a] = points[j] + l1Dir * nt.y;
+        else if (nt.z > -1 && nt.z <= 0) points[a] = points[j] + l1Dir * nt.z;
+        // L2 Intersections -------------------------------------------------------
+        pt = (glm::vec3(mResolution) - points[b]) * l2DirInv; // Positive
+        nt = (glm::vec3(0) - points[b]) * l2DirInv; // Negative
+        // Positive planes
+        if (pt.x < 1 && pt.x >= 0) points[b] = points[j] + l2Dir * pt.x;
+        else if (pt.y < 1 && pt.y >= 0) points[b] = points[j] + l2Dir * pt.y;
+        else if (pt.z < 1 && pt.z >= 0) points[b] = points[j] + l2Dir * pt.z;
+        // Negative planes
+        else if (nt.x > -1 && nt.x <= 0) points[b] = points[j] + l2Dir * nt.x;
+        else if (nt.y > -1 && nt.y <= 0) points[b] = points[j] + l2Dir * nt.y;
+        else if (nt.z > -1 && nt.z <= 0) points[b] = points[j] + l2Dir * nt.z;
+
+        break;
+      }
+      else if (isInside[j] && (isInside[a] != isInside[b])) { // Two points outside
+        // Find outside point
+        uint8_t index;
+        if (isInside[a]) index = b;
+        else             index = a;
+
+        glm::vec3 dir = points[j] - points[index];
+
+        // Intersections
+        glm::vec3 pt = (glm::vec3(mResolution) - points[index]) * dir;
+        glm::vec3 nt = (glm::vec3(0) - points[index]) * dir;
+        // Positive planes
+        if (pt.x < 1 && pt.x >= 0) points[index] = points[j] + dir * pt.x;
+        else if (pt.y < 1 && pt.y >= 0) points[index] = points[j] + dir * pt.y;
+        else if (pt.z < 1 && pt.z >= 0) points[index] = points[j] + dir * pt.z;
+        // Negatives planes
+        else if (nt.x > -1 && nt.x <= 0) points[index] = points[j] + dir * nt.x;
+        else if (nt.y > -1 && nt.y <= 0) points[index] = points[j] + dir * nt.y;
+        else if (nt.z > -1 && nt.z <= 0) points[index] = points[j] + dir * nt.z;
+
+        break;
+      }
     }
 
     // Find dominant axis
@@ -200,18 +270,10 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
     nonDominantAxisIndices[0] = (dominantAxisIndex + 1) % 3;
     nonDominantAxisIndices[1] = (dominantAxisIndex + 2) % 3;
 
-    // glm::vec3 normal = glm::cross(points[1] - points[0], points[2] - points[0]);
-    // normal = glm::normalize(normal);
-
     // Sort by dominant axis
     if (v3index(points[0], dominantAxisIndex) > v3index(points[1], dominantAxisIndex)) std::swap(points[0], points[1]);
     if (v3index(points[1], dominantAxisIndex) > v3index(points[2], dominantAxisIndex)) std::swap(points[1], points[2]);
     if (v3index(points[0], dominantAxisIndex) > v3index(points[1], dominantAxisIndex)) std::swap(points[0], points[1]);
-
-    if (points[0] == points[1] && points[0] == points[2]) {
-      insert(glm::floor(points[0]), pInsertFunc);
-      continue;
-    }
 
     // Calculate direction and inverse for lines
     glm::vec3 lhDir = points[2] - points[0];
