@@ -11,12 +11,9 @@
 
 namespace VMesh {
   constexpr float& v3index(glm::tvec3<float>& v, uint8_t i) {
-    if (i == 0)
-      return v.x;
-    if (i == 1)
-      return v.y;
-    if (i == 2)
-      return v.z;
+    if (i == 0) return v.x;
+    if (i == 1) return v.y;
+    if (i == 2) return v.z;
     return v.x;
   }
 
@@ -40,13 +37,15 @@ namespace VMesh {
 
     void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
 
-    int insert(const glm::tvec3<uint>& pPos, const insertFunc_t& pInsertFunc = [](...){});
+    int insert(const glm::uvec3& pPos, const insertFunc_t& pInsertFunc = [](...){});
+
+    void rasterizeTriangle(std::array<glm::vec3, 3> pPoints);
 
     uint64_t getVoxelCount();
     uint64_t getVolume();
     uint getResolution();
     float getMaxDepth();
-    bool queryVoxel(const glm::tvec3<uint>& pPos);
+    bool queryVoxel(const glm::uvec3& pPos);
     // const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
     const std::vector<char>& getVoxelDataBits();
     std::vector<uint64_t> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
@@ -71,7 +70,7 @@ namespace VMesh {
 
     static glm::vec3 toVec3(float a, float b, float c, uint8_t pDominantAxisIndex);
 
-    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, const insertFunc_t& pInsertFunc);
+    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv);
 
     std::ostream* mLogStream;
     std::mutex* mLogMutex;

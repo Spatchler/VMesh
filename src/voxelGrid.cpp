@@ -196,7 +196,7 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
       continue;
     }
 
-    // TODO: Rewrite this mess
+    // TODO: Rewrite
     for (uint8_t j = 0; j < 3; ++j) {
       uint8_t a = (j + 1) % 3;
       uint8_t b = (j + 2) % 3;
@@ -254,119 +254,9 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
       }
     }
 
-    // Find dominant axis
-    glm::vec3 minPoint = glm::min(points[0], glm::min(points[1], points[2]));
-    glm::vec3 maxPoint = glm::max(points[0], glm::max(points[1], points[2]));
-    glm::vec3 boxSize = maxPoint - minPoint;
-
-    uint8_t dominantAxisIndex = 0;
-    if ((boxSize.x >= boxSize.y) && (boxSize.x >= boxSize.z))
-      dominantAxisIndex = 0;
-    else if ((boxSize.y >= boxSize.x) && (boxSize.y >= boxSize.z))
-      dominantAxisIndex = 1;
-    else if ((boxSize.z >= boxSize.x) && (boxSize.z >= boxSize.y))
-      dominantAxisIndex = 2;
-    std::array<uint8_t, 2> nonDominantAxisIndices;
-    nonDominantAxisIndices[0] = (dominantAxisIndex + 1) % 3;
-    nonDominantAxisIndices[1] = (dominantAxisIndex + 2) % 3;
-
-    // Sort by dominant axis
-    if (v3index(points[0], dominantAxisIndex) > v3index(points[1], dominantAxisIndex)) std::swap(points[0], points[1]);
-    if (v3index(points[1], dominantAxisIndex) > v3index(points[2], dominantAxisIndex)) std::swap(points[1], points[2]);
-    if (v3index(points[0], dominantAxisIndex) > v3index(points[1], dominantAxisIndex)) std::swap(points[0], points[1]);
-
-    // Calculate direction and inverse for lines
-    glm::vec3 lhDir = points[2] - points[0];
-    glm::vec3 lhDirInv = 1.f/lhDir;
-
-    glm::vec3 lmDir = points[1] - points[0];
-    glm::vec3 lmDirInv = 1.f/lmDir;
-
-    glm::vec3 mhDir = points[2] - points[1];
-    glm::vec3 mhDirInv = 1.f/mhDir;
-
-    // Iterate over along the dominant axis traversing between the two lines
-    for (float dominantAxisValue = v3index(points[0], dominantAxisIndex); dominantAxisValue <= v3index(points[2], dominantAxisIndex); ++dominantAxisValue) {
-      glm::vec3* l1Dir = &lmDir;
-      glm::vec3* l1DirInv = &lmDirInv;
-      glm::vec3* l2Dir = &lhDir;
-      glm::vec3* l2DirInv = &lhDirInv;
-      if ((v3index(points[1], dominantAxisIndex) < dominantAxisValue) || (v3index(lmDir, dominantAxisIndex) == 0)) {
-        l1Dir = &mhDir;
-        l1DirInv = &mhDirInv;
-      }
-
-      glm::vec2 l1Pos;
-      glm::vec2 l2Pos;
-
-      // TODO: Use last save second intersection positions for the next iteration
-
-      // L2
-      // Normal plane
-      float t = (dominantAxisValue - v3index(points[0], dominantAxisIndex)) * v3index(*l2DirInv, dominantAxisIndex);
-      glm::vec2 l2Posa = glm::vec2(v3index(points[0], nonDominantAxisIndices[0]), v3index(points[0], nonDominantAxisIndices[1])) // Origin
-                        + t * glm::vec2(v3index(*l2Dir, nonDominantAxisIndices[0]), v3index(*l2Dir, nonDominantAxisIndices[1]));
-      // Next plane
-      t = (std::min(dominantAxisValue + 1, v3index(points[2], dominantAxisIndex)) - v3index(points[0], dominantAxisIndex)) * v3index(*l2DirInv, dominantAxisIndex);
-      glm::vec2 l2Posb = glm::vec2(v3index(points[0], nonDominantAxisIndices[0]), v3index(points[0], nonDominantAxisIndices[1])) // Origin
-                        + t * glm::vec2(v3index(*l2Dir, nonDominantAxisIndices[0]), v3index(*l2Dir, nonDominantAxisIndices[1]));
-
-      if ((v3index(points[1], dominantAxisIndex) >= dominantAxisValue) && (v3index(points[1], dominantAxisIndex) <= dominantAxisValue + 1)) {
-        l1Pos = glm::vec2(v3index(points[1], nonDominantAxisIndices[0]), v3index(points[1], nonDominantAxisIndices[1]));
-
-        // Choose which has the greatest length
-        if (glm::length(l2Posa - l1Pos) >= glm::length(l2Posb - l1Pos))
-          l2Pos = l2Posa;
-        else
-          l2Pos = l2Posb;
-      }
-      else {
-        // L1
-        // Normal plane
-        t = (dominantAxisValue - v3index(points[1], dominantAxisIndex)) * v3index(*l1DirInv, dominantAxisIndex);
-        glm::vec2 l1Posa = glm::vec2(v3index(points[1], nonDominantAxisIndices[0]), v3index(points[1], nonDominantAxisIndices[1])) // Origin
-                          + t * glm::vec2(v3index(*l1Dir, nonDominantAxisIndices[0]), v3index(*l1Dir, nonDominantAxisIndices[1]));
-        // Next plane
-        t = (std::min(dominantAxisValue + 1, v3index(points[2], dominantAxisIndex)) - v3index(points[1], dominantAxisIndex)) * v3index(*l1DirInv, dominantAxisIndex);
-        glm::vec2 l1Posb = glm::vec2(v3index(points[1], nonDominantAxisIndices[0]), v3index(points[1], nonDominantAxisIndices[1])) // Origin
-                          + t * glm::vec2(v3index(*l1Dir, nonDominantAxisIndices[0]), v3index(*l1Dir, nonDominantAxisIndices[1]));
-
-        // Choose which has the greatest length
-        if (glm::length(l2Posa - l1Posa) >= glm::length(l2Posb - l1Posa))
-          l2Pos = l2Posa;
-        else
-          l2Pos = l2Posb;
-
-        if (glm::length(l2Pos - l1Posa) >= glm::length(l2Pos - l1Posb))
-          l1Pos = l1Posa;
-        else
-          l1Pos = l1Posb;
-      }
-
-      // TODO: This could be optimized by mixing it in rahter than just doing it after
-      uint index = 4;
-      if ((v3index(points[0], dominantAxisIndex) >= dominantAxisValue) && (v3index(points[0], dominantAxisIndex) <= dominantAxisValue + 1))
-        index = 0;
-      if ((v3index(points[2], dominantAxisIndex) >= dominantAxisValue) && (v3index(points[2], dominantAxisIndex) <= dominantAxisValue + 1))
-        index = 2;
-      if (index != 4) {
-        glm::vec2 v2(v3index(points[index], nonDominantAxisIndices[0]), v3index(points[index], nonDominantAxisIndices[1]));
-        if (glm::length(l2Pos - v2) >= glm::length(l2Pos - l1Pos))
-          l1Pos = v2;
-        else if (glm::length(l1Pos - v2) >= glm::length(l1Pos - l2Pos))
-          l2Pos = v2;
-      }
-
-      glm::vec2 dir = l2Pos - l1Pos; // Dir from l1 to l2 intersection points
-      glm::vec2 dirInv = 1.f/dir;
-
-      // std::println("l1Pos: {}, {}, l2Pos: {}, {}", l1Pos.x, l1Pos.y, l2Pos.x, l2Pos.y);
-
-      drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv, pInsertFunc);
-    }
+    rasterizeTriangle(points);
   }
 }
-
 void VoxelGrid::writeToFile(const std::string& pPath) {
   std::ofstream fout;
   openFileWrite(fout, pPath);
@@ -404,7 +294,7 @@ void VoxelGrid::loadFromFile(const std::string& pPath) {
   // char byte;
   // std::println("Loaded file in {0}, decompressing...", t.getTime());
   // uint i = 0;
-  // glm::tvec3<uint> pos;
+  // glm::uvec3 pos;
   // for (char byte: mVoxelData) {
   // // while (fin.read(&byte, 1)) {
   //   for (uint bitIndex = 0; bitIndex < 8; ++bitIndex, ++i, byte >>= 1) {
@@ -432,7 +322,7 @@ void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
   mLogStream = pStream;
 }
 
-int VoxelGrid::insert(const glm::tvec3<uint>& pPos, const insertFunc_t& pInsertFunc) {
+int VoxelGrid::insert(const glm::uvec3& pPos, const insertFunc_t& pInsertFunc) {
   if (pPos.x < 0 || pPos.x >= mResolution ||
       pPos.y < 0 || pPos.y >= mResolution ||
       pPos.z < 0 || pPos.z >= mResolution) {
@@ -461,6 +351,114 @@ int VoxelGrid::insert(const glm::tvec3<uint>& pPos, const insertFunc_t& pInsertF
   return 0;
 }
 
+void VoxelGrid::rasterizeTriangle(std::array<glm::vec3, 3> pPoints) {
+  // Check if all points are the same
+  if (pPoints[0] == pPoints[1] && pPoints[0] == pPoints[2]) {
+    insert(glm::floor(pPoints[0]));
+    return;
+  }
+
+  // Find dominant axis
+  glm::vec3 minPoint = glm::min(pPoints[0], glm::min(pPoints[1], pPoints[2]));
+  glm::vec3 maxPoint = glm::max(pPoints[0], glm::max(pPoints[1], pPoints[2]));
+  glm::vec3 boxSize = maxPoint - minPoint;
+
+  uint8_t dominantAxisIndex = 0;
+  if ((boxSize.x >= boxSize.y) && (boxSize.x >= boxSize.z))      dominantAxisIndex = 0;
+  else if ((boxSize.y >= boxSize.x) && (boxSize.y >= boxSize.z)) dominantAxisIndex = 1;
+  else if ((boxSize.z >= boxSize.x) && (boxSize.z >= boxSize.y)) dominantAxisIndex = 2;
+  std::array<uint8_t, 2> nonDominantAxisIndices;
+  nonDominantAxisIndices[0] = (dominantAxisIndex + 1) % 3;
+  nonDominantAxisIndices[1] = (dominantAxisIndex + 2) % 3;
+
+  // Sort by dominant axis
+  if (v3index(pPoints[0], dominantAxisIndex) > v3index(pPoints[1], dominantAxisIndex)) std::swap(pPoints[0], pPoints[1]);
+  if (v3index(pPoints[1], dominantAxisIndex) > v3index(pPoints[2], dominantAxisIndex)) std::swap(pPoints[1], pPoints[2]);
+  if (v3index(pPoints[0], dominantAxisIndex) > v3index(pPoints[1], dominantAxisIndex)) std::swap(pPoints[0], pPoints[1]);
+
+  // Calculate direction and inverse for lines
+  glm::vec3 lhDir = pPoints[2] - pPoints[0];
+  glm::vec3 lhDirInv = 1.f/lhDir;
+
+  glm::vec3 lmDir = pPoints[1] - pPoints[0];
+  glm::vec3 lmDirInv = 1.f/lmDir;
+
+  glm::vec3 mhDir = pPoints[2] - pPoints[1];
+  glm::vec3 mhDirInv = 1.f/mhDir;
+
+  // Iterate over along the dominant axis traversing between the two lines
+  for (float dominantAxisValue = v3index(pPoints[0], dominantAxisIndex); dominantAxisValue <= v3index(pPoints[2], dominantAxisIndex); ++dominantAxisValue) {
+    glm::vec3* l1Dir = &lmDir;
+    glm::vec3* l1DirInv = &lmDirInv;
+    glm::vec3* l2Dir = &lhDir;
+    glm::vec3* l2DirInv = &lhDirInv;
+    if ((v3index(pPoints[1], dominantAxisIndex) < dominantAxisValue) || (v3index(lmDir, dominantAxisIndex) == 0)) {
+      l1Dir = &mhDir;
+      l1DirInv = &mhDirInv;
+    }
+
+    glm::vec2 l1Pos;
+    glm::vec2 l2Pos;
+
+    // TODO: Use last save second intersection positions for the next iteration
+
+    // L2
+    // Normal plane
+    float t = (dominantAxisValue - v3index(pPoints[0], dominantAxisIndex)) * v3index(*l2DirInv, dominantAxisIndex);
+    glm::vec2 l2Posa = glm::vec2(v3index(pPoints[0], nonDominantAxisIndices[0]), v3index(pPoints[0], nonDominantAxisIndices[1])) // Origin
+                      + t * glm::vec2(v3index(*l2Dir, nonDominantAxisIndices[0]), v3index(*l2Dir, nonDominantAxisIndices[1]));
+    // Next plane
+    t = (std::min(dominantAxisValue + 1, v3index(pPoints[2], dominantAxisIndex)) - v3index(pPoints[0], dominantAxisIndex)) * v3index(*l2DirInv, dominantAxisIndex);
+    glm::vec2 l2Posb = glm::vec2(v3index(pPoints[0], nonDominantAxisIndices[0]), v3index(pPoints[0], nonDominantAxisIndices[1])) // Origin
+                      + t * glm::vec2(v3index(*l2Dir, nonDominantAxisIndices[0]), v3index(*l2Dir, nonDominantAxisIndices[1]));
+
+    if ((v3index(pPoints[1], dominantAxisIndex) >= dominantAxisValue) && (v3index(pPoints[1], dominantAxisIndex) <= dominantAxisValue + 1)) {
+      l1Pos = glm::vec2(v3index(pPoints[1], nonDominantAxisIndices[0]), v3index(pPoints[1], nonDominantAxisIndices[1]));
+
+      // Choose which has the greatest length
+      if (glm::length(l2Posa - l1Pos) >= glm::length(l2Posb - l1Pos)) l2Pos = l2Posa;
+      else                                                            l2Pos = l2Posb;
+    }
+    else {
+      // L1
+      // Normal plane
+      t = (dominantAxisValue - v3index(pPoints[1], dominantAxisIndex)) * v3index(*l1DirInv, dominantAxisIndex);
+      glm::vec2 l1Posa = glm::vec2(v3index(pPoints[1], nonDominantAxisIndices[0]), v3index(pPoints[1], nonDominantAxisIndices[1])) // Origin
+                        + t * glm::vec2(v3index(*l1Dir, nonDominantAxisIndices[0]), v3index(*l1Dir, nonDominantAxisIndices[1]));
+      // Next plane
+      t = (std::min(dominantAxisValue + 1, v3index(pPoints[2], dominantAxisIndex)) - v3index(pPoints[1], dominantAxisIndex)) * v3index(*l1DirInv, dominantAxisIndex);
+      glm::vec2 l1Posb = glm::vec2(v3index(pPoints[1], nonDominantAxisIndices[0]), v3index(pPoints[1], nonDominantAxisIndices[1])) // Origin
+                        + t * glm::vec2(v3index(*l1Dir, nonDominantAxisIndices[0]), v3index(*l1Dir, nonDominantAxisIndices[1]));
+
+      // Choose which has the greatest length
+      if (glm::length(l2Posa - l1Posa) >= glm::length(l2Posb - l1Posa)) l2Pos = l2Posa;
+      else                                                              l2Pos = l2Posb;
+
+      if (glm::length(l2Pos - l1Posa) >= glm::length(l2Pos - l1Posb)) l1Pos = l1Posa;
+      else                                                            l1Pos = l1Posb;
+    }
+
+    // TODO: This could be optimized by mixing it in rahter than just doing it after
+    uint index = 4;
+    if ((v3index(pPoints[0], dominantAxisIndex) >= dominantAxisValue) && (v3index(pPoints[0], dominantAxisIndex) <= dominantAxisValue + 1))
+      index = 0;
+    if ((v3index(pPoints[2], dominantAxisIndex) >= dominantAxisValue) && (v3index(pPoints[2], dominantAxisIndex) <= dominantAxisValue + 1))
+      index = 2;
+    if (index != 4) {
+      glm::vec2 v2(v3index(pPoints[index], nonDominantAxisIndices[0]), v3index(pPoints[index], nonDominantAxisIndices[1]));
+      if (glm::length(l2Pos - v2) >= glm::length(l2Pos - l1Pos))      l1Pos = v2;
+      else if (glm::length(l1Pos - v2) >= glm::length(l1Pos - l2Pos)) l2Pos = v2;
+    }
+
+    glm::vec2 dir = l2Pos - l1Pos; // Dir from l1 to l2 intersection pPoints
+    glm::vec2 dirInv = 1.f/dir;
+
+    // std::println("l1Pos: {}, {}, l2Pos: {}, {}", l1Pos.x, l1Pos.y, l2Pos.x, l2Pos.y);
+
+    drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv);
+  }
+}
+
 uint64_t VoxelGrid::getVoxelCount() {
   return mVoxelCount;
 }
@@ -477,7 +475,7 @@ float VoxelGrid::getMaxDepth() {
   return mMaxDepth;
 }
 
-bool VoxelGrid::queryVoxel(const glm::tvec3<uint>& pPos) {
+bool VoxelGrid::queryVoxel(const glm::uvec3& pPos) {
   uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
   uint byteIndex = globalIndex >> 3;
   uint localIndex = globalIndex & 0b111;
@@ -497,9 +495,9 @@ std::vector<uint64_t> VoxelGrid::generateCompressedVoxelData(uint64_t* pVoxelsCo
   std::vector<uint64_t> counts;
   uint64_t count = 0;
   bool value = false;
-  for (uint x = 0; x < mResolution; ++x) {
+  for (uint z = 0; z < mResolution; ++z) {
     for (uint y = 0; y < mResolution; ++y) {
-      for (uint z = 0; z < mResolution; ++z) {
+      for (uint x = 0; x < mResolution; ++x) {
         if (queryVoxel(glm::vec3(x, y, z)) != value) {
           // Write count
           counts.push_back(count);
@@ -539,11 +537,11 @@ void VoxelGrid::writeMetaData(std::ofstream& pFout) {
   pFout.write(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
 }
 
-void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, const insertFunc_t& pInsertFunction) {
+void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv) {
   // std::println("Started drawLine2");
   glm::vec3 v = glm::floor(toVec3(pDominantAxisValue, pStart.x, pStart.y, pDominantAxisIndex));
 
-  insert(v, pInsertFunction);
+  insert(v);
 
   glm::vec2 voxelPos = glm::floor(pStart);
 
@@ -555,7 +553,7 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
     if (plane1 == pEnd.x && plane2 == pEnd.y) { // If the destination point lies exactly on the planes we increment both x and y
       voxelPos += glm::sign(pDirInv);
       v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
-      insert(v, pInsertFunction);
+      insert(v);
       break;
     }
     
@@ -569,7 +567,7 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
 
     v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
 
-    insert(v, pInsertFunction);
+    insert(v);
   }
 
   // std::println("Started");
