@@ -39,7 +39,7 @@ namespace VMesh {
 
     int insert(const glm::uvec3& pPos, const insertFunc_t& pInsertFunc = [](...){});
 
-    void rasterizeTriangle(std::array<glm::vec3, 3> pPoints);
+    void voxelizeTriangle(std::array<glm::vec3, 3> pPoints);
 
     uint64_t getVoxelCount();
     uint64_t getVolume();

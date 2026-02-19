@@ -191,10 +191,12 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
     if (!isInside[0] && !isInside[1] && !isInside[2]) continue;
 
     // Check if all points are the same
-    if (points[0] == points[1] && points[0] == points[2]) {
+    if (glm::floor(points[0]) == glm::floor(points[1]) && glm::floor(points[0]) == glm::floor(points[2])) {
       insert(glm::floor(points[0]), pInsertFunc);
       continue;
     }
+
+    if (isInside[0] && isInside[1] && isInside[2]) voxelizeTriangle(points);
 
     // TODO: Rewrite
     for (uint8_t j = 0; j < 3; ++j) {
@@ -205,56 +207,66 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
         glm::vec3 l2Dir = points[j] - points[b];
         glm::vec3 l1DirInv = 1.f/l1Dir;
         glm::vec3 l2DirInv = 1.f/l2Dir;
+
+        std::array<float, 6> t;
+        std::array<float, 6> tAbs;
+
         // L1 Intersections -------------------------------------------------------
-        glm::vec3 pt = (glm::vec3(mResolution) - points[a]) * l1DirInv;
-        glm::vec3 nt = (glm::vec3(0) - points[a]) * l1DirInv;
-        // Positive planes
-        if (pt.x < 1 && pt.x >= 0) points[a] = points[j] + l1Dir * pt.x;
-        else if (pt.y < 1 && pt.y >= 0) points[a] = points[j] + l1Dir * pt.y;
-        else if (pt.z < 1 && pt.z >= 0) points[a] = points[j] + l1Dir * pt.z;
-        // Negatives planes
-        else if (nt.x > -1 && nt.x <= 0) points[a] = points[j] + l1Dir * nt.x;
-        else if (nt.y > -1 && nt.y <= 0) points[a] = points[j] + l1Dir * nt.y;
-        else if (nt.z > -1 && nt.z <= 0) points[a] = points[j] + l1Dir * nt.z;
+        for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(points[a], i)) * v3index(l1DirInv, i);
+        for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(points[a], i)) * v3index(l1DirInv, i);
+        for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
+        auto min = std::min_element(tAbs.begin(), tAbs.end());
+        points[a] = points[a] + l1Dir * t[std::distance(tAbs.begin(), min)];
         // L2 Intersections -------------------------------------------------------
-        pt = (glm::vec3(mResolution) - points[b]) * l2DirInv; // Positive
-        nt = (glm::vec3(0) - points[b]) * l2DirInv; // Negative
-        // Positive planes
-        if (pt.x < 1 && pt.x >= 0) points[b] = points[j] + l2Dir * pt.x;
-        else if (pt.y < 1 && pt.y >= 0) points[b] = points[j] + l2Dir * pt.y;
-        else if (pt.z < 1 && pt.z >= 0) points[b] = points[j] + l2Dir * pt.z;
-        // Negative planes
-        else if (nt.x > -1 && nt.x <= 0) points[b] = points[j] + l2Dir * nt.x;
-        else if (nt.y > -1 && nt.y <= 0) points[b] = points[j] + l2Dir * nt.y;
-        else if (nt.z > -1 && nt.z <= 0) points[b] = points[j] + l2Dir * nt.z;
+        for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(points[b], i)) * v3index(l2DirInv, i);
+        for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(points[b], i)) * v3index(l2DirInv, i);
+        for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
+        min = std::min_element(tAbs.begin(), tAbs.end());
+        points[b] = points[b] + l2Dir * t[std::distance(tAbs.begin(), min)];
+
+        voxelizeTriangle(points);
 
         break;
       }
-      else if (isInside[j] && (isInside[a] != isInside[b])) { // Two points outside
+      else if (isInside[j] && (isInside[a] != isInside[b])) { // Two points inside
         // Find outside point
-        uint8_t index;
-        if (isInside[a]) index = b;
-        else             index = a;
+        uint8_t outIndex, inIndex;
+        if (isInside[a]) {
+          outIndex = b;
+          inIndex = a;
+        }
+        else {
+          outIndex = a;
+          inIndex = b;
+        }
 
-        glm::vec3 dir = points[j] - points[index];
+        glm::vec3 intersectionPoint1, intersectionPoint2;
 
-        // Intersections
-        glm::vec3 pt = (glm::vec3(mResolution) - points[index]) * dir;
-        glm::vec3 nt = (glm::vec3(0) - points[index]) * dir;
-        // Positive planes
-        if (pt.x < 1 && pt.x >= 0) points[index] = points[j] + dir * pt.x;
-        else if (pt.y < 1 && pt.y >= 0) points[index] = points[j] + dir * pt.y;
-        else if (pt.z < 1 && pt.z >= 0) points[index] = points[j] + dir * pt.z;
-        // Negatives planes
-        else if (nt.x > -1 && nt.x <= 0) points[index] = points[j] + dir * nt.x;
-        else if (nt.y > -1 && nt.y <= 0) points[index] = points[j] + dir * nt.y;
-        else if (nt.z > -1 && nt.z <= 0) points[index] = points[j] + dir * nt.z;
+        // L1 Intersections--------------------------------------------------------
+        glm::vec3 dir = points[j] - points[outIndex];
+        glm::vec3 dirInv = 1.f/dir;
+        std::array<float, 6> t;
+        std::array<float, 6> tAbs;
+        for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(points[outIndex], i)) * v3index(dirInv, i);
+        for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(points[outIndex], i)) * v3index(dirInv, i);
+        for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
+        auto min = std::min_element(tAbs.begin(), tAbs.end());
+        intersectionPoint1 = points[outIndex] + dir * t[std::distance(tAbs.begin(), min)];
+        // L2 Intersections -------------------------------------------------------
+        dir = points[inIndex] - points[outIndex];
+        dirInv = 1.f/dir;
+        for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(points[outIndex], i)) * v3index(dirInv, i);
+        for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(points[outIndex], i)) * v3index(dirInv, i);
+        for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
+        min = std::min_element(tAbs.begin(), tAbs.end());
+        intersectionPoint2 = points[outIndex] + dir * t[std::distance(tAbs.begin(), min)];
+        
+        voxelizeTriangle({intersectionPoint1, points[inIndex], points[j]});
+        voxelizeTriangle({intersectionPoint1, intersectionPoint2, points[inIndex]});
 
         break;
       }
     }
-
-    rasterizeTriangle(points);
   }
 }
 void VoxelGrid::writeToFile(const std::string& pPath) {
@@ -351,9 +363,9 @@ int VoxelGrid::insert(const glm::uvec3& pPos, const insertFunc_t& pInsertFunc) {
   return 0;
 }
 
-void VoxelGrid::rasterizeTriangle(std::array<glm::vec3, 3> pPoints) {
+void VoxelGrid::voxelizeTriangle(std::array<glm::vec3, 3> pPoints) {
   // Check if all points are the same
-  if (pPoints[0] == pPoints[1] && pPoints[0] == pPoints[2]) {
+  if (glm::floor(pPoints[0]) == glm::floor(pPoints[1]) && glm::floor(pPoints[0]) == glm::floor(pPoints[2])) {
     insert(glm::floor(pPoints[0]));
     return;
   }
@@ -401,7 +413,7 @@ void VoxelGrid::rasterizeTriangle(std::array<glm::vec3, 3> pPoints) {
     glm::vec2 l2Pos;
 
     // TODO: Use last save second intersection positions for the next iteration
-
+    
     // L2
     // Normal plane
     float t = (dominantAxisValue - v3index(pPoints[0], dominantAxisIndex)) * v3index(*l2DirInv, dominantAxisIndex);
