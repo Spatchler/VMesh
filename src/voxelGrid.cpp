@@ -177,18 +177,27 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
   const std::vector<uint>& indices = pMesh.getIndices();
 
   for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
-    // Add points to array
+    // Add points to inside and outside arrays
     std::array<glm::vec3, 3> points;
-
-    std::array<bool, 3> isInside = {{false}};
+    std::array<glm::vec3, 3> insidePoints;
+    std::array<glm::vec3, 3> outsidePoints;
+    uint8_t insideCount = 0;
+    uint8_t outsideCount = 0;
 
     for (uint8_t j = 0; j < 3; ++j) {
       points[j] = verts[indices[i*3+j]] - mOrigin;
-      isInside[j] = points[j] == glm::max(glm::vec3(0), glm::min(glm::vec3(mResolution), points[j]));
+      if (points[j] == glm::max(glm::vec3(0), glm::min(glm::vec3(mResolution), points[j]))) {
+        insidePoints[insideCount] = points[j];
+        ++insideCount;
+      }
+      else {
+        outsidePoints[outsideCount] = points[j];
+        ++outsideCount;
+      }
     }
 
-    // Check if all tri points are outside the grid
-    if (!isInside[0] && !isInside[1] && !isInside[2]) continue;
+    // Check if all points are outside
+    if (!insideCount) continue;
 
     // Check if all points are the same
     if (glm::floor(points[0]) == glm::floor(points[1]) && glm::floor(points[0]) == glm::floor(points[2])) {
@@ -196,77 +205,60 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
       continue;
     }
 
-    if (isInside[0] && isInside[1] && isInside[2]) voxelizeTriangle(points);
-
-    // TODO: Rewrite
-    for (uint8_t j = 0; j < 3; ++j) {
-      uint8_t a = (j + 1) % 3;
-      uint8_t b = (j + 2) % 3;
-      if (isInside[j] && !isInside[a] && !isInside[b]) { // One point inside
-        glm::vec3 l1Dir = points[j] - points[a];
-        glm::vec3 l2Dir = points[j] - points[b];
-        glm::vec3 l1DirInv = 1.f/l1Dir;
-        glm::vec3 l2DirInv = 1.f/l2Dir;
-
-        std::array<float, 6> t;
-        std::array<float, 6> tAbs;
-
-        // L1 Intersections -------------------------------------------------------
-        for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(points[a], i)) * v3index(l1DirInv, i);
-        for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(points[a], i)) * v3index(l1DirInv, i);
-        for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
-        auto min = std::min_element(tAbs.begin(), tAbs.end());
-        points[a] = points[a] + l1Dir * t[std::distance(tAbs.begin(), min)];
-        // L2 Intersections -------------------------------------------------------
-        for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(points[b], i)) * v3index(l2DirInv, i);
-        for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(points[b], i)) * v3index(l2DirInv, i);
-        for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
-        min = std::min_element(tAbs.begin(), tAbs.end());
-        points[b] = points[b] + l2Dir * t[std::distance(tAbs.begin(), min)];
-
-        voxelizeTriangle(points);
-
-        break;
-      }
-      else if (isInside[j] && (isInside[a] != isInside[b])) { // Two points inside
-        // Find outside point
-        uint8_t outIndex, inIndex;
-        if (isInside[a]) {
-          outIndex = b;
-          inIndex = a;
-        }
-        else {
-          outIndex = a;
-          inIndex = b;
-        }
-
-        glm::vec3 intersectionPoint1, intersectionPoint2;
-
-        // L1 Intersections--------------------------------------------------------
-        glm::vec3 dir = points[j] - points[outIndex];
-        glm::vec3 dirInv = 1.f/dir;
-        std::array<float, 6> t;
-        std::array<float, 6> tAbs;
-        for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(points[outIndex], i)) * v3index(dirInv, i);
-        for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(points[outIndex], i)) * v3index(dirInv, i);
-        for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
-        auto min = std::min_element(tAbs.begin(), tAbs.end());
-        intersectionPoint1 = points[outIndex] + dir * t[std::distance(tAbs.begin(), min)];
-        // L2 Intersections -------------------------------------------------------
-        dir = points[inIndex] - points[outIndex];
-        dirInv = 1.f/dir;
-        for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(points[outIndex], i)) * v3index(dirInv, i);
-        for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(points[outIndex], i)) * v3index(dirInv, i);
-        for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
-        min = std::min_element(tAbs.begin(), tAbs.end());
-        intersectionPoint2 = points[outIndex] + dir * t[std::distance(tAbs.begin(), min)];
-        
-        voxelizeTriangle({intersectionPoint1, points[inIndex], points[j]});
-        voxelizeTriangle({intersectionPoint1, intersectionPoint2, points[inIndex]});
-
-        break;
-      }
+    // No triangle splitting when all points are inside
+    if (outsideCount == 0) {
+      voxelizeTriangle(points);
+      continue;
     }
+
+    // Shrink triangle if one point inside two points outside
+    if (insideCount == 1) {
+      std::array<float, 6> t;
+      std::array<float, 6> tAbs;
+      
+      // L1 Intersections -------------------------------------------------------
+      glm::vec3 dir = insidePoints[0] - outsidePoints[0];
+      glm::vec3 dirInv = 1.f/dir;
+      for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
+      for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
+      for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
+      auto min = std::min_element(tAbs.begin(), tAbs.end());
+      outsidePoints[0] += dir * t[std::distance(tAbs.begin(), min)];
+      // L2 Intersections -------------------------------------------------------
+      dir = insidePoints[0] - outsidePoints[1];
+      dirInv = 1.f/dir;
+      for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(outsidePoints[1], i)) * v3index(dirInv, i);
+      for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(outsidePoints[1], i)) * v3index(dirInv, i);
+      for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
+      min = std::min_element(tAbs.begin(), tAbs.end());
+      outsidePoints[1] += dir * t[std::distance(tAbs.begin(), min)];
+
+      voxelizeTriangle({insidePoints[0], outsidePoints[0], outsidePoints[1]});
+      continue;
+    }
+
+    // Create two triangles if two points inside one point outside
+    std::array<float, 6> t;
+    std::array<float, 6> tAbs;
+    // L1 Intersections--------------------------------------------------------
+    glm::vec3 dir = insidePoints[0] - outsidePoints[0];
+    glm::vec3 dirInv = 1.f/dir;
+    for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
+    for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
+    for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
+    auto min = std::min_element(tAbs.begin(), tAbs.end());
+    glm::vec3 intersectionPoint1 = outsidePoints[0] + dir * t[std::distance(tAbs.begin(), min)];
+    // L2 Intersections -------------------------------------------------------
+    dir = insidePoints[1] - outsidePoints[0];
+    dirInv = 1.f/dir;
+    for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
+    for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
+    for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
+    min = std::min_element(tAbs.begin(), tAbs.end());
+    glm::vec3 intersectionPoint2 = outsidePoints[0] + dir * t[std::distance(tAbs.begin(), min)];
+    
+    voxelizeTriangle({intersectionPoint1, insidePoints[1], insidePoints[0]});
+    voxelizeTriangle({intersectionPoint1, intersectionPoint2, insidePoints[1]});
   }
 }
 void VoxelGrid::writeToFile(const std::string& pPath) {
