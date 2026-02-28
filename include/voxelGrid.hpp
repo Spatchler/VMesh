@@ -2,6 +2,8 @@
 
 #include "mesh.hpp"
 
+#include <cassert>
+
 #include <future>
 #include <sstream>
 #include <fstream>
@@ -45,7 +47,8 @@ namespace VMesh {
     uint64_t getVolume();
     uint getResolution();
     float getMaxDepth();
-    bool queryVoxel(const glm::uvec3& pPos);
+    char* getVoxelDataByte(const glm::uvec3& pPos);
+    const bool queryVoxel(const glm::uvec3& pPos);
     // const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
     const std::vector<char>& getVoxelDataBits();
     std::vector<uint64_t> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
@@ -71,6 +74,8 @@ namespace VMesh {
     static glm::vec3 toVec3(float a, float b, float c, uint8_t pDominantAxisIndex);
 
     void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv);
+
+    uint64_t zorder(const glm::uvec3& pPos);
 
     std::ostream* mLogStream;
     std::mutex* mLogMutex;

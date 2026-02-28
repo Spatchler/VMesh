@@ -25,22 +25,20 @@ void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
 
   for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
     // Add points to array
-    for (uint j = 0; j < 3; ++j)
-      points[j] = verts[indices[i*3+j]];
+    for (uint j = 0; j < 3; ++j) points[j] = verts[indices[i*3+j]] - mOrigin;
 
     glm::vec3 minPoint = glm::min(points[0], glm::min(points[1], points[2]));
     glm::vec3 maxPoint = glm::max(points[0], glm::max(points[1], points[2]));
 
-    // minPoint = glm::floor(minPoint) - glm::vec3(1,1,1);
-    // maxPoint = glm::ceil(maxPoint) + glm::vec3(1,1,1);
+    minPoint = glm::floor(minPoint);
+    maxPoint = glm::ceil(maxPoint);
 
-    minPoint = glm::max(minPoint, mOrigin);
-    maxPoint = glm::min(maxPoint, mOrigin + glm::vec3(mResolution));
+    minPoint = glm::max(minPoint, glm::vec3(0));
+    maxPoint = glm::min(maxPoint, glm::vec3(mResolution));
 
-    for (glm::uvec3 pos = minPoint; pos.x <= maxPoint.x; ++pos.x) for (pos.y = minPoint.y; pos.y <= maxPoint.y; ++pos.y) for (pos.z = minPoint.z; pos.z <= maxPoint.z; ++pos.z) // Every block
-      if (!queryVoxel(pos))
-        if (triangleBoxIntersect(points, pos))
-          insert(pos);
+    for (glm::uvec3 pos = minPoint; pos.z <= maxPoint.z; ++pos.z) for (pos.y = minPoint.y; pos.y <= maxPoint.y; ++pos.y) for (pos.x = minPoint.x; pos.x <= maxPoint.x; ++pos.x) // Every block
+      // if (!queryVoxel(pos)) if (triangleBoxIntersect(points, glm::vec3(pos) + 0.5f)) insert(pos);
+      if (triangleBoxIntersect(points, glm::vec3(pos) + 0.5f)) insert(pos);
   }
 }
 
@@ -53,7 +51,7 @@ bool VoxelGrid::triangleBoxIntersect(const std::array<glm::vec3, 3>& pTriPoints,
   glm::vec3 e0 = pTriPoints[1] - pTriPoints[0];
   glm::vec3 e1 = pTriPoints[2] - pTriPoints[1];
   glm::vec3 e2 = pTriPoints[0] - pTriPoints[2];
-  glm::vec3 fe = glm::abs(pTriPoints[1] - pTriPoints[0]);
+  glm::vec3 fe = glm::abs(e0);
 
   float min, max;
 
@@ -61,27 +59,27 @@ bool VoxelGrid::triangleBoxIntersect(const std::array<glm::vec3, 3>& pTriPoints,
   if (axistestY02(translatedTriPoint0, translatedTriPoint2, e0.z, e0.x, fe.z, fe.x, min, max)) return false;
   if (axistestZ12(translatedTriPoint1, translatedTriPoint2, e0.y, e0.x, fe.y, fe.x, min, max)) return false;
 
-  fe = glm::abs(pTriPoints[2] - pTriPoints[1]);
+  fe = glm::abs(e1);
 
-  if (axistestX01(translatedTriPoint0, translatedTriPoint2, e0.z, e0.y, fe.z, fe.y, min, max)) return false;
-  if (axistestY02(translatedTriPoint0, translatedTriPoint2, e0.z, e0.x, fe.z, fe.x, min, max)) return false;
-  if (axistestZ0(translatedTriPoint0, translatedTriPoint1, e0.y, e0.x, fe.y, fe.x, min, max)) return false;
+  if (axistestX01(translatedTriPoint0, translatedTriPoint2, e1.z, e1.y, fe.z, fe.y, min, max)) return false;
+  if (axistestY02(translatedTriPoint0, translatedTriPoint2, e1.z, e1.x, fe.z, fe.x, min, max)) return false;
+  if (axistestZ0(translatedTriPoint0, translatedTriPoint1, e1.y, e1.x, fe.y, fe.x, min, max)) return false;
 
-  fe = glm::abs(pTriPoints[0] - pTriPoints[2]);
+  fe = glm::abs(e2);
 
-  if (axistestX2(translatedTriPoint0, translatedTriPoint1, e0.z, e0.y, fe.z, fe.y, min, max)) return false;
-  if (axistestY1(translatedTriPoint0, translatedTriPoint1, e0.z, e0.x, fe.z, fe.x, min, max)) return false;
-  if (axistestZ12(translatedTriPoint1, translatedTriPoint2, e0.y, e0.x, fe.y, fe.x, min, max)) return false;
+  if (axistestX2(translatedTriPoint0, translatedTriPoint1, e2.z, e2.y, fe.z, fe.y, min, max)) return false;
+  if (axistestY1(translatedTriPoint0, translatedTriPoint1, e2.z, e2.x, fe.z, fe.x, min, max)) return false;
+  if (axistestZ12(translatedTriPoint1, translatedTriPoint2, e2.y, e2.x, fe.y, fe.x, min, max)) return false;
 
   // Test x
-  findMinMax(translatedTriPoint0.x, translatedTriPoint1.x, translatedTriPoint2.x, min, max);
-  if (min > 0.5f || max < -0.5f) return false;
-  // Text y
-  findMinMax(translatedTriPoint0.y, translatedTriPoint1.y, translatedTriPoint2.y, min, max);
-  if (min > 0.5f || max < -0.5f) return false;
-  // Test z
-  findMinMax(translatedTriPoint0.z, translatedTriPoint1.z, translatedTriPoint2.z, min, max);
-  if (min > 0.5f || max < -0.5f) return false;
+  // findMinMax(translatedTriPoint0.x, translatedTriPoint1.x, translatedTriPoint2.x, min, max);
+  // if (min > 0.5f || max < -0.5f) return false;
+  // // Text y
+  // findMinMax(translatedTriPoint0.y, translatedTriPoint1.y, translatedTriPoint2.y, min, max);
+  // if (min > 0.5f || max < -0.5f) return false;
+  // // Test z
+  // findMinMax(translatedTriPoint0.z, translatedTriPoint1.z, translatedTriPoint2.z, min, max);
+  // if (min > 0.5f || max < -0.5f) return false;
 
   // Test if the box intersects the plane of the triangle
   glm::vec3 triNormal = glm::cross(e0, e1);
@@ -177,88 +175,26 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFu
   const std::vector<uint>& indices = pMesh.getIndices();
 
   for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
-    // Add points to inside and outside arrays
     std::array<glm::vec3, 3> points;
-    std::array<glm::vec3, 3> insidePoints;
-    std::array<glm::vec3, 3> outsidePoints;
-    uint8_t insideCount = 0;
-    uint8_t outsideCount = 0;
+
+    bool xp = true, xn = true;
+    bool yp = true, yn = true;
+    bool zp = true, zn = true;
 
     for (uint8_t j = 0; j < 3; ++j) {
       points[j] = verts[indices[i*3+j]] - mOrigin;
-      if (points[j] == glm::max(glm::vec3(0), glm::min(glm::vec3(mResolution), points[j]))) {
-        insidePoints[insideCount] = points[j];
-        ++insideCount;
-      }
-      else {
-        outsidePoints[outsideCount] = points[j];
-        ++outsideCount;
-      }
+      xp = xp && points[j].x > mResolution;
+      xn = xn && points[j].x < 0;
+      yp = yp && points[j].y > mResolution;
+      yn = yn && points[j].y < 0;
+      zp = zp && points[j].z > mResolution;
+      zn = zn && points[j].z < 0;
     }
 
-    // Check if all points are outside
-    if (!insideCount) continue;
+    // Check if all points are to one side
+    if (xp || xn || yp || yn || zp || zn) continue;
 
-    // Check if all points are the same
-    if (glm::floor(points[0]) == glm::floor(points[1]) && glm::floor(points[0]) == glm::floor(points[2])) {
-      insert(glm::floor(points[0]), pInsertFunc);
-      continue;
-    }
-
-    // No triangle splitting when all points are inside
-    if (outsideCount == 0) {
-      voxelizeTriangle(points);
-      continue;
-    }
-
-    // Shrink triangle if one point inside two points outside
-    if (insideCount == 1) {
-      std::array<float, 6> t;
-      std::array<float, 6> tAbs;
-      
-      // L1 Intersections -------------------------------------------------------
-      glm::vec3 dir = insidePoints[0] - outsidePoints[0];
-      glm::vec3 dirInv = 1.f/dir;
-      for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
-      for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
-      for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
-      auto min = std::min_element(tAbs.begin(), tAbs.end());
-      outsidePoints[0] += dir * t[std::distance(tAbs.begin(), min)];
-      // L2 Intersections -------------------------------------------------------
-      dir = insidePoints[0] - outsidePoints[1];
-      dirInv = 1.f/dir;
-      for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(outsidePoints[1], i)) * v3index(dirInv, i);
-      for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(outsidePoints[1], i)) * v3index(dirInv, i);
-      for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
-      min = std::min_element(tAbs.begin(), tAbs.end());
-      outsidePoints[1] += dir * t[std::distance(tAbs.begin(), min)];
-
-      voxelizeTriangle({insidePoints[0], outsidePoints[0], outsidePoints[1]});
-      continue;
-    }
-
-    // Create two triangles if two points inside one point outside
-    std::array<float, 6> t;
-    std::array<float, 6> tAbs;
-    // L1 Intersections--------------------------------------------------------
-    glm::vec3 dir = insidePoints[0] - outsidePoints[0];
-    glm::vec3 dirInv = 1.f/dir;
-    for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
-    for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
-    for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
-    auto min = std::min_element(tAbs.begin(), tAbs.end());
-    glm::vec3 intersectionPoint1 = outsidePoints[0] + dir * t[std::distance(tAbs.begin(), min)];
-    // L2 Intersections -------------------------------------------------------
-    dir = insidePoints[1] - outsidePoints[0];
-    dirInv = 1.f/dir;
-    for (uint i = 0; i < 3; ++i) t[i] = (mResolution - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
-    for (uint i = 0; i < 3; ++i) t[3 + i] = (0 - v3index(outsidePoints[0], i)) * v3index(dirInv, i);
-    for (uint i = 0; i < 6; ++i) tAbs[i] = glm::abs(t[i]);
-    min = std::min_element(tAbs.begin(), tAbs.end());
-    glm::vec3 intersectionPoint2 = outsidePoints[0] + dir * t[std::distance(tAbs.begin(), min)];
-    
-    voxelizeTriangle({intersectionPoint1, insidePoints[1], insidePoints[0]});
-    voxelizeTriangle({intersectionPoint1, intersectionPoint2, insidePoints[1]});
+    voxelizeTriangle(points);
   }
 }
 void VoxelGrid::writeToFile(const std::string& pPath) {
@@ -335,23 +271,13 @@ int VoxelGrid::insert(const glm::uvec3& pPos, const insertFunc_t& pInsertFunc) {
     return 1;
   }
 
-  uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
-  uint byteIndex = globalIndex >> 3;
+  uint64_t globalIndex = zorder(pPos);
+  // uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
+  uint64_t byteIndex = globalIndex >> 3;
   uint localIndex = globalIndex & 0b111;
   char mask = 1 << localIndex;
-  if (!(mVoxelData[byteIndex] & mask))
-    ++mVoxelCount;
+  if (!(mVoxelData[byteIndex] & mask)) ++mVoxelCount;
   mVoxelData[byteIndex] |= mask;
-  // if (!queryVoxel[pPos.x][pPos.y][pPos.z]) {
-  //   // pInsertFunc(pPos.x, pPos.y, pPos.z);
-  //   // mVoxelGrid[pPos.x][pPos.y][pPos.z] = true;
-
-  //   uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
-  //   uint byteIndex = globalIndex >> 3;
-  //   uint localIndex = globalIndex & 0b111;
-  //   char mask = 1 << localIndex;
-  //   mVoxelData[byteIndex] |= mask;
-  // }
   return 0;
 }
 
@@ -479,9 +405,22 @@ float VoxelGrid::getMaxDepth() {
   return mMaxDepth;
 }
 
-bool VoxelGrid::queryVoxel(const glm::uvec3& pPos) {
-  uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
-  uint byteIndex = globalIndex >> 3;
+char* VoxelGrid::getVoxelDataByte(const glm::uvec3& pPos) {
+  uint64_t globalIndex = zorder(pPos);
+  uint64_t byteIndex = globalIndex >> 3;
+  uint localIndex = globalIndex & 0b111;
+  return &mVoxelData[byteIndex];
+}
+
+const bool VoxelGrid::queryVoxel(const glm::uvec3& pPos) {
+  if (pPos.x < 0 || pPos.x >= mResolution ||
+      pPos.y < 0 || pPos.y >= mResolution ||
+      pPos.z < 0 || pPos.z >= mResolution)
+    throw 1;
+  
+  uint64_t globalIndex = zorder(pPos);
+  // uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
+  uint64_t byteIndex = globalIndex >> 3;
   uint localIndex = globalIndex & 0b111;
   char mask = 1 << localIndex;
   return mVoxelData[byteIndex] & mask;
@@ -621,5 +560,33 @@ glm::vec3 VoxelGrid::toVec3(float a, float b, float c, uint8_t pDominantAxisInde
     v.z = a;
   }
   return v;
+}
+
+uint64_t VoxelGrid::zorder(const glm::uvec3& pPos) {
+  uint64_t x = pPos.x, y = pPos.y, z = pPos.z;
+  static const uint64_t B[] = {0x00000000FF0000FF, 0x000000F00F00F00F,
+                                    0x00000C30C30C30C3, 0X0000249249249249};           
+  static const int S[] =  {16, 8, 4, 2}; 
+  static const uint64_t MAXINPUT = 65536;
+
+  assert( (x < MAXINPUT) && (y < MAXINPUT) && (z < MAXINPUT) );
+
+  x = (x | (x << S[0])) & B[0];
+  x = (x | (x << S[1])) & B[1];
+  x = (x | (x << S[2])) & B[2];
+  x = (x | (x << S[3])) & B[3];
+
+  y = (y | (y << S[0])) & B[0];
+  y = (y | (y << S[1])) & B[1];
+  y = (y | (y << S[2])) & B[2];
+  y = (y | (y << S[3])) & B[3];
+
+  z = (z | (z <<  S[0])) & B[0];
+  z = (z | (z <<  S[1])) & B[1];
+  z = (z | (z <<  S[2])) & B[2];
+  z = (z | (z <<  S[3])) & B[3];
+
+  uint64_t result = x | (y << 1) | (z << 2);
+  return result;
 }
 
