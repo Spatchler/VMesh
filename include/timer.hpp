@@ -43,11 +43,9 @@ namespace VMesh {
   public:
     Timer() {}
 
-    std::chrono::duration<double> getTime() { return 0.0; }
+    std::chrono::duration<double> getTime() { return std::chrono::duration<double>(0.0); }
 
-    void start(const std::string& pName) {}
-
-    void stop() {}
+    void start() {}
   };
 
   class ScopedTimer: public Timer {

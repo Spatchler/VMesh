@@ -317,7 +317,7 @@ void VoxelGrid::voxelizeTriangle(std::array<glm::vec3, 3> pPoints) {
   glm::vec3 mhDirInv = 1.f/mhDir;
 
   // Iterate over along the dominant axis traversing between the two lines
-  for (float dominantAxisValue = v3index(pPoints[0], dominantAxisIndex); dominantAxisValue <= v3index(pPoints[2], dominantAxisIndex); ++dominantAxisValue) {
+  for (float dominantAxisValue = std::max(0.f, v3index(pPoints[0], dominantAxisIndex)); dominantAxisValue <= std::min((float)mResolution, v3index(pPoints[2], dominantAxisIndex)); ++dominantAxisValue) {
     glm::vec3* l1Dir = &lmDir;
     glm::vec3* l1DirInv = &lmDirInv;
     glm::vec3* l2Dir = &lhDir;
@@ -382,8 +382,6 @@ void VoxelGrid::voxelizeTriangle(std::array<glm::vec3, 3> pPoints) {
 
     glm::vec2 dir = l2Pos - l1Pos; // Dir from l1 to l2 intersection pPoints
     glm::vec2 dirInv = 1.f/dir;
-
-    // std::println("l1Pos: {}, {}, l2Pos: {}, {}", l1Pos.x, l1Pos.y, l2Pos.x, l2Pos.y);
 
     drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv);
   }
@@ -488,7 +486,11 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
 
   glm::vec2 voxelPos = glm::floor(pStart);
 
-  while (voxelPos != glm::floor(pEnd)) {
+  while (  voxelPos != glm::floor(pEnd) &&
+         !(voxelPos.x > mResolution && pDir.x > 0) &&
+         !(voxelPos.x < 0 && pDir.x < 0) &&
+         !(voxelPos.y > mResolution && pDir.y > 0) &&
+         !(voxelPos.y < 0 && pDir.y < 0)) {
     // std::println("voxelPos: ({}, {}), l1Pos: ({}, {}), l2pos: ({}, {}), signDirInv: ({}, {})", voxelPos.x, voxelPos.y, pStart.x, pStart.y, pEnd.x, pEnd.y, glm::sign(pDirInv.x), glm::sign(pDirInv.y));
     float plane1 = voxelPos.x + std::max(0.f, glm::sign(pDirInv.x));
     float plane2 = voxelPos.y + std::max(0.f, glm::sign(pDirInv.y));
@@ -503,10 +505,8 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
     float t1 = (plane1 - pStart.x) * pDirInv.x;
     float t2 = (plane2 - pStart.y) * pDirInv.y;
 
-    if (t1 < t2)
-      voxelPos.x += glm::sign(pDirInv.x);
-    else
-      voxelPos.y += glm::sign(pDirInv.y);
+    if (t1 < t2) voxelPos.x += glm::sign(pDirInv.x);
+    else         voxelPos.y += glm::sign(pDirInv.y);
 
     v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
 
@@ -565,7 +565,7 @@ glm::vec3 VoxelGrid::toVec3(float a, float b, float c, uint8_t pDominantAxisInde
 uint64_t VoxelGrid::zorder(const glm::uvec3& pPos) {
   uint64_t x = pPos.x, y = pPos.y, z = pPos.z;
   static const uint64_t B[] = {0x00000000FF0000FF, 0x000000F00F00F00F,
-                                    0x00000C30C30C30C3, 0X0000249249249249};           
+                               0x00000C30C30C30C3, 0X0000249249249249};
   static const int S[] =  {16, 8, 4, 2}; 
   static const uint64_t MAXINPUT = 65536;
 
