@@ -19,8 +19,6 @@ namespace VMesh {
     return v.x;
   }
 
-  typedef std::function<void(float,float,float)> insertFunc_t;
-
   class VoxelGrid {
   public:
     VoxelGrid(uint pResolution, glm::vec3 pOrigin = glm::vec3(0,0,0));
@@ -29,7 +27,7 @@ namespace VMesh {
     glm::vec3 getOrigin();
 
     void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
-    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete , const insertFunc_t& pInsertFunc = [](...){});
+    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
 
     void writeToFile(const std::string& pPath);
     void writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete);
@@ -39,7 +37,8 @@ namespace VMesh {
 
     void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
 
-    int insert(const glm::uvec3& pPos, const insertFunc_t& pInsertFunc = [](...){});
+    int insert(uint64_t pIndex);
+    int insert(const glm::uvec3& pPos);
 
     void voxelizeTriangle(std::array<glm::vec3, 3> pPoints);
 
@@ -84,7 +83,7 @@ namespace VMesh {
     std::vector<char> mVoxelData;
     
     glm::vec3 mOrigin;
-    uint mResolution = 0;
+    uint mResolution = 0, mResolution2 = 0;
     uint64_t mVolume = 0, mVoxelCount = 0;
     float mMaxDepth = 0;
   };

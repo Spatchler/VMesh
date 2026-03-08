@@ -170,7 +170,7 @@ bool VoxelGrid::axistestZ0(const glm::vec3& pTranslatedTriPoint0, const glm::vec
   return false;
 }
 
-void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, const insertFunc_t& pInsertFunc) {
+void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
   const std::vector<glm::vec3>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
@@ -213,6 +213,10 @@ void VoxelGrid::writeToFileCompressed(const std::string& pPath, uint64_t* pVoxel
   writeMetaData(fout);
 
   std::vector<uint64_t> compressedData = generateCompressedVoxelData(pVoxelsComplete);
+
+  uint32_t countsLen = compressedData.size();
+  fout.write(reinterpret_cast<char*>(&countsLen), 4);
+
   fout.write(reinterpret_cast<char*>(&compressedData.at(0)), compressedData.size() * sizeof(uint64_t));
 
   fout.close();
@@ -229,40 +233,66 @@ void VoxelGrid::loadFromFile(const std::string& pPath) {
   init();
   
   // Load
-  // mVoxelData.resize(mVolume / 8);
   fin.read(&mVoxelData.at(0), mVolume / 8);
-  // char byte;
-  // std::println("Loaded file in {0}, decompressing...", t.getTime());
-  // uint i = 0;
-  // glm::uvec3 pos;
-  // for (char byte: mVoxelData) {
-  // // while (fin.read(&byte, 1)) {
-  //   for (uint bitIndex = 0; bitIndex < 8; ++bitIndex, ++i, byte >>= 1) {
-  //     if (byte & 1) {
-  //       pos.z = i / (mResolution * mResolution);
-  //       pos.y = (i / mResolution) % mResolution;
-  //       pos.x = i % mResolution;
-  //       mVoxelGrid[pos.x][pos.y][pos.z] = true;
-  //     }
-  //   }
-  // }
 
   fin.close();
 }
 
 void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
-  return;
+  // Open file
+  std::ifstream fin;
+  fin.open(pPath, std::ios::binary | std::ios::in);
+  
+  // Read resolution
+  fin.read(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
+
+  // Read counts len
+  uint32_t countsLen;
+  fin.read(reinterpret_cast<char*>(&countsLen), sizeof(uint32_t));
+
+  init();
+
+  // Load
+  std::vector<uint64_t> counts;
+  counts.resize(countsLen);
+  fin.read(reinterpret_cast<char*>(&counts.at(0)), countsLen * sizeof(uint64_t));
+
+  bool isAir = true;
+
+  glm::uvec3 pos(0);
+
+  uint64_t index = 0;
+  for (uint64_t i: counts) {
+    if (isAir) index += i;
+    else for (; index < index + i; ++index) insert(index);
+    isAir = !isAir;
+  }
+
+  fin.close();
 }
 
 void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
-  if (!pMutex)
-    mLogMutex = &mDefaultLogMutex;
-  else
-    mLogMutex = pMutex;
+  if (!pMutex) mLogMutex = &mDefaultLogMutex;
+  else         mLogMutex = pMutex;
   mLogStream = pStream;
 }
 
-int VoxelGrid::insert(const glm::uvec3& pPos, const insertFunc_t& pInsertFunc) {
+int VoxelGrid::insert(uint64_t pIndex) {
+  if (pIndex > mVoxelData.size() >> 3) {
+    std::lock_guard<std::mutex> lock(*mLogMutex);
+    std::println(*mLogStream, "Couldn't insert voxel index: {}. Reason: index too large", pIndex);
+    return 1;
+  }
+
+  uint64_t byteIndex = pIndex >> 3;
+  uint bitIndex = pIndex & 0b111;
+  char mask = 1 << bitIndex;
+  if (!(mVoxelData[byteIndex] & mask)) ++mVoxelCount;
+  mVoxelData[byteIndex] |= mask;
+  return 0;
+}
+
+int VoxelGrid::insert(const glm::uvec3& pPos) {
   if (pPos.x < 0 || pPos.x >= mResolution ||
       pPos.y < 0 || pPos.y >= mResolution ||
       pPos.z < 0 || pPos.z >= mResolution) {
@@ -274,8 +304,8 @@ int VoxelGrid::insert(const glm::uvec3& pPos, const insertFunc_t& pInsertFunc) {
   uint64_t globalIndex = zorder(pPos);
   // uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
   uint64_t byteIndex = globalIndex >> 3;
-  uint localIndex = globalIndex & 0b111;
-  char mask = 1 << localIndex;
+  uint bitIndex = globalIndex & 0b111;
+  char mask = 1 << bitIndex;
   if (!(mVoxelData[byteIndex] & mask)) ++mVoxelCount;
   mVoxelData[byteIndex] |= mask;
   return 0;
@@ -436,34 +466,26 @@ std::vector<uint64_t> VoxelGrid::generateCompressedVoxelData(uint64_t* pVoxelsCo
   std::vector<uint64_t> counts;
   uint64_t count = 0;
   bool value = false;
-  for (uint z = 0; z < mResolution; ++z) {
-    for (uint y = 0; y < mResolution; ++y) {
-      for (uint x = 0; x < mResolution; ++x) {
-        if (queryVoxel(glm::vec3(x, y, z)) != value) {
-          // Write count
-          counts.push_back(count);
-          value = !value;
-          count = 0;
-        }
-        ++count;
-        ++*pVoxelsComplete;
-      }
+  for (char i: mVoxelData) {
+    for (uint8_t mask = 1; mask != 0; mask <<= 1, ++count, ++*pVoxelsComplete) if (i & mask != value) {
+      counts.push_back(count);
+      value = !value;
+      count = 0;
     }
   }
+
   return counts;
 }
 
 void VoxelGrid::init() {
   uint64_t res = mResolution;
-  mVolume = res * res * res;
+  mResolution2 = res * res;
+  mVolume = mResolution2 * res;
   mMaxDepth = std::log2f(mResolution);
 
-  // mVoxelGrid.clear();
   mVoxelData.clear();
 
-  // Init mVoxelGrid and mVoxelData
-  // mVoxelGrid = std::vector<std::vector<std::vector<bool>>>(mResolution, std::vector<std::vector<bool>>(mResolution, std::vector<bool>(mResolution, false)));
-
+  // Init mVoxelData
   mVoxelData = std::vector<char>(mVolume >> 3, 0);
 }
 

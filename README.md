@@ -7,5 +7,5 @@ A C++ library for CPU DDA based triangle mesh voxelization. I also plan to make 
 * ASSIMP
 
 ### Build:
-`premake5 gmake && make`
+`premake5 gmake && make config=dist`
 
