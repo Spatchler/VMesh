@@ -6,25 +6,36 @@
 
 #include "timer.hpp"
 
+#include "texture.hpp"
+
 #include <string>
 
 namespace VMesh {
+  struct Vertex {
+    glm::vec3 pos;
+    glm::vec2 texCoord;
+  };
+
   class Mesh {
   public:
     Mesh() = default;
 
+    void setMatIndex(uint i);
+    uint getMatIndex();
+
     void transformVertices(const glm::mat4& pM);
 
-    void addVert(const glm::vec3& pVert);
+    void addVertex(const Vertex& pVert);
     void addTri(const std::array<uint, 3>& pIndices);
-    void addTriUnique(const std::array<glm::vec3, 3>& pVerts);
+    void addTriUnique(const std::array<Vertex, 3>& pVerts);
 
     uint getTriCount() const;
 
-    const std::vector<glm::vec3>& getVertices();
+    const std::vector<Vertex>& getVertices();
     const std::vector<uint>& getIndices();
   protected:
-    std::vector<glm::vec3> mVerts;
+    uint mMatIndex;
+    std::vector<Vertex> mVerts;
     std::vector<uint> mIndices;
 
     uint mTriCount = 0;
