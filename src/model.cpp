@@ -12,11 +12,11 @@ void Model::load(const std::string& pPath, bool pShouldLoadTexture) {
   const aiScene* scene = importer.ReadFile(pPath, aiProcess_Triangulate);
 
   if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
-    throw std::format("ERROR::ASSIMP: {}", importer.GetErrorString());
+    throw std::runtime_error(std::format("ERROR::ASSIMP: {}", importer.GetErrorString()));
 
   mDirectory = pPath.substr(0, pPath.find_last_of('/'));
 
-  loadMaterials();
+  loadMaterials(scene);
 
   processNode(scene->mRootNode, scene);
 }
@@ -37,6 +37,10 @@ Mesh& Model::getMesh(uint i) {
   return mMeshes.at(i);
 }
 
+void Model::release() {
+  for (auto& i: mDiffuseMaps) i.release();
+}
+
 void Model::processNode(aiNode* pNode, const aiScene* pScene) {
   for (uint i = 0; i < pNode->mNumMeshes; ++i)
     processMesh(pScene->mMeshes[pNode->mMeshes[i]], pScene);
@@ -46,7 +50,7 @@ void Model::processNode(aiNode* pNode, const aiScene* pScene) {
 }
 
 void Model::processMesh(aiMesh* pMesh, const aiScene* pScene) {
-  mMeshes.empace_back();
+  mMeshes.emplace_back();
   mMeshes.back().setMatIndex(pMesh->mMaterialIndex);
   for (uint i = 0; i < pMesh->mNumVertices; ++i) {
     Vertex v;
@@ -67,17 +71,26 @@ void Model::processMesh(aiMesh* pMesh, const aiScene* pScene) {
 
   for (uint i = 0; i < pMesh->mNumFaces; ++i) {
     aiFace face = pMesh->mFaces[i]; // A face will always have 3 vertices because we use aiProcess_Triangulate
-    mMeshes.back().addTri(face.mIndices[0], face.mIndices[1], face.mIndices[2]);
+    mMeshes.back().addTri({face.mIndices[0], face.mIndices[1], face.mIndices[2]});
     ++mTriCount;
   }
 }
 
-void Model::loadMaterials(aiScene* pScene) {
+void Model::loadMaterials(const aiScene* pScene) {
   if (!pScene->HasMaterials()) return;
-  for (aiMaterial* mat: pScene->mMaterials) {
-    for (uint i = 0; i < pMat->GetTextureCount(aiTextureType_DIFFUSE); ++i) {
+  for (uint i = 0; i < pScene->mNumMaterials; ++i) {
+    aiMaterial* mat = pScene->mMaterials[i];
+    // Base Colour if has no textures
+    if (mat->GetTextureCount(aiTextureType_DIFFUSE) == 0) {
+      aiColor3D colour(0.f,0.f,0.f);
+      mat->Get(AI_MATKEY_COLOR_DIFFUSE, colour);
+      mDiffuseMaps.emplace_back(glm::vec3(colour.r, colour.g, colour.b));
+      continue;
+    }
+    // Texture
+    for (uint j = 0; j < mat->GetTextureCount(aiTextureType_DIFFUSE); ++j) {
       aiString path;
-      pMat->GetTexture(aiTextureType_DIFFUSE, i, &path);
+      mat->GetTexture(aiTextureType_DIFFUSE, j, &path);
       mDiffuseMaps.emplace_back(mDirectory + '/' + std::string(path.C_Str()));
     }
   }

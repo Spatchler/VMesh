@@ -16,13 +16,15 @@ namespace VMesh {
     uint getTriCount();
     uint getNumMeshes();
     Mesh& getMesh(uint i);
+
+    void release();
   private:
     uint mTriCount = 0;
     std::vector<Mesh> mMeshes;
     std::string mDirectory;
     std::vector<Texture> mDiffuseMaps;
-    void loadMaterialDiffuseMaps(aiMaterial* pMat);
     void processNode(aiNode* pNode, const aiScene* pScene);
     void processMesh(aiMesh* pMesh, const aiScene* pScene);
+    void loadMaterials(const aiScene* pScene);
   };
 }
