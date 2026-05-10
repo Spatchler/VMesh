@@ -9,19 +9,15 @@
 #include <print>
 
 namespace VMesh {
-  constexpr float& v3index(glm::tvec3<float>& v, uint8_t i) {
-    if (i == 0) return v.x;
-    if (i == 1) return v.y;
-    if (i == 2) return v.z;
-    return v.x;
-  }
-
   class Palette {
   public:
     Palette();
 
-    uint16_t addColour(const glm::vec3& pCol, float pThreshold = 0.f);
-    uint16_t getClosestColour(const glm::vec3& pCol);
+    uint8_t addColour(const glm::vec3& pCol, float pThreshold = 0.f);
+    uint8_t getClosestColour(const glm::vec3& pCol);
+    glm::vec3 getColour(uint8_t pIndex);
+
+    uint size();
 
     void writeToFile(const std::string& pPath);
     void readFromFile(const std::string& pPath);
