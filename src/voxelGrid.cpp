@@ -17,15 +17,20 @@ glm::vec3 VoxelGrid::getOrigin() {
   return mOrigin;
 }
 
-void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
-  const std::vector<glm::vec3>& verts = pMesh.getVertices();
+void VoxelGrid::clear() {
+  mVoxelCount = 0;
+  std::fill(mVoxelData.begin(), mVoxelData.end(), 0);
+}
+
+void VoxelGrid::IntersectVoxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
+  const std::vector<Vertex>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
   std::array<glm::vec3, 3> points;
 
   for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
     // Add points to array
-    for (uint j = 0; j < 3; ++j) points[j] = verts[indices[i*3+j]] - mOrigin;
+    for (uint j = 0; j < 3; ++j) points[j] = verts[indices[i*3+j]].pos - mOrigin;
 
     glm::vec3 minPoint = glm::min(points[0], glm::min(points[1], points[2]));
     glm::vec3 maxPoint = glm::max(points[0], glm::max(points[1], points[2]));
@@ -38,8 +43,13 @@ void VoxelGrid::voxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
 
     for (glm::uvec3 pos = minPoint; pos.z <= maxPoint.z; ++pos.z) for (pos.y = minPoint.y; pos.y <= maxPoint.y; ++pos.y) for (pos.x = minPoint.x; pos.x <= maxPoint.x; ++pos.x) // Every block
       // if (!queryVoxel(pos)) if (triangleBoxIntersect(points, glm::vec3(pos) + 0.5f)) insert(pos);
-      if (triangleBoxIntersect(points, glm::vec3(pos) + 0.5f)) insert(pos);
+      if (triangleBoxIntersect(points, glm::vec3(pos) + 0.5f)) insert(pos, 1);
   }
+}
+
+void VoxelGrid::IntersectVoxelizeModel(Model& pModel, uint* pTrisComplete) {
+  for (uint i = 0; i < pModel.getNumMeshes(); ++i)
+    IntersectVoxelizeMesh(pModel.getMesh(i), pTrisComplete);
 }
 
 bool VoxelGrid::triangleBoxIntersect(const std::array<glm::vec3, 3>& pTriPoints, const glm::vec3& pBoxOrigin) {
@@ -92,14 +102,14 @@ bool VoxelGrid::planeBoxOverlap(glm::vec3& pNormal, glm::vec3& pVert) {
   glm::vec3 vmin, vmax;
   float v;
   for (uint8_t i = 0; i <= 2; ++i) {
-    v = v3index(pVert, i);
-    if (v3index(pNormal, i) > 0.0f) {
-      v3index(vmin, i) = -0.5f - v;
-      v3index(vmax, i) =  0.5f - v;
+    v = pVert[i];
+    if (pNormal[i] > 0.0f) {
+      vmin[i] = -0.5f - v;
+      vmax[i] =  0.5f - v;
     }
     else {
-      v3index(vmin, i) =  0.5f - v;
-      v3index(vmax, i) = -0.5f - v;
+      vmin[i] =  0.5f - v;
+      vmax[i] = -0.5f - v;
     }
   }
   if (glm::dot(pNormal, vmin) >  0.0f) return false;
@@ -170,52 +180,67 @@ bool VoxelGrid::axistestZ0(const glm::vec3& pTranslatedTriPoint0, const glm::vec
   return false;
 }
 
-void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
-  const std::vector<glm::vec3>& verts = pMesh.getVertices();
+void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, Texture* pTex) {
+  const std::vector<Vertex>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
   for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
-    std::array<glm::vec3, 3> points;
+    std::array<Vertex, 3> points;
 
     bool xp = true, xn = true;
     bool yp = true, yn = true;
     bool zp = true, zn = true;
 
     for (uint8_t j = 0; j < 3; ++j) {
-      points[j] = verts[indices[i*3+j]] - mOrigin;
-      xp = xp && points[j].x > mResolution;
-      xn = xn && points[j].x < 0;
-      yp = yp && points[j].y > mResolution;
-      yn = yn && points[j].y < 0;
-      zp = zp && points[j].z > mResolution;
-      zn = zn && points[j].z < 0;
+      points[j] = verts[indices[i*3+j]];
+      points[j].pos -= mOrigin;
+      xp = xp && points[j].pos.x > mResolution;
+      xn = xn && points[j].pos.x < 0;
+      yp = yp && points[j].pos.y > mResolution;
+      yn = yn && points[j].pos.y < 0;
+      zp = zp && points[j].pos.z > mResolution;
+      zn = zn && points[j].pos.z < 0;
     }
 
     // Check if all points are to one side
     if (xp || xn || yp || yn || zp || zn) continue;
 
-    voxelizeTriangle(points);
+    DDAvoxelizeTriangle(points, pTex);
   }
 }
+
+void VoxelGrid::DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured) {
+  for (uint i = 0; i < pModel.getNumMeshes(); ++i) {
+    Mesh& m = pModel.getMesh(i);
+    Texture* t = NULL;
+    if (pColoured) t = &pModel.getDiffuseMap(m.getMatIndex());
+    DDAvoxelizeMesh(m, pTrisComplete, t);
+  }
+}
+
 void VoxelGrid::writeToFile(const std::string& pPath) {
   std::ofstream fout;
-  openFileWrite(fout, pPath);
+  fout.open(pPath, std::ios::out | std::ios::binary);
+  if (!fout.is_open()) throw std::runtime_error("Could not open output file");
+
   writeMetaData(fout);
 
-  fout.write(&mVoxelData.at(0), mVoxelData.size());
+  fout.write(reinterpret_cast<char*>(&mVoxelData.at(0)), mVoxelData.size());
 
   fout.close();
 }
 
 void VoxelGrid::writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete) {
   std::ofstream fout;
-  openFileWrite(fout, pPath);
+  fout.open(pPath, std::ios::out | std::ios::binary);
+  if (!fout.is_open()) throw std::runtime_error("Could not open output file");
+
   writeMetaData(fout);
 
   std::vector<uint64_t> compressedData = generateCompressedVoxelData(pVoxelsComplete);
 
   uint32_t countsLen = compressedData.size();
-  fout.write(reinterpret_cast<char*>(&countsLen), 4);
+  fout.write(reinterpret_cast<char*>(&countsLen), sizeof(uint32_t));
 
   fout.write(reinterpret_cast<char*>(&compressedData.at(0)), compressedData.size() * sizeof(uint64_t));
 
@@ -226,14 +251,14 @@ void VoxelGrid::loadFromFile(const std::string& pPath) {
   // Open file
   std::ifstream fin;
   fin.open(pPath, std::ios::binary | std::ios::in);
-  
-  // Read resolution
-  fin.read(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
+  if (!fin.is_open()) throw std::runtime_error("Could not open input file");
+
+  readMetaData(fin);
 
   init();
   
   // Load
-  fin.read(&mVoxelData.at(0), mVolume / 8);
+  fin.read(reinterpret_cast<char*>(&mVoxelData.at(0)), mVolume);
 
   fin.close();
 }
@@ -242,9 +267,9 @@ void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
   // Open file
   std::ifstream fin;
   fin.open(pPath, std::ios::binary | std::ios::in);
-  
-  // Read resolution
-  fin.read(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
+  if (!fin.is_open()) throw std::runtime_error("Could not open input file");
+
+  readMetaData(fin);
 
   // Read counts len
   uint32_t countsLen;
@@ -259,12 +284,10 @@ void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
 
   bool isAir = true;
 
-  glm::uvec3 pos(0);
-
   uint64_t index = 0;
   for (uint64_t i: counts) {
-    if (isAir) index += i;
-    else for (; index < index + i; ++index) insert(index);
+    if (!isAir) for (uint64_t j = 0; j < i; ++j) insert(index + j, 1);
+    index += i;
     isAir = !isAir;
   }
 
@@ -277,50 +300,28 @@ void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
   mLogStream = pStream;
 }
 
-int VoxelGrid::insert(uint64_t pIndex) {
-  if (pIndex > mVoxelData.size() >> 3) {
-    std::lock_guard<std::mutex> lock(*mLogMutex);
-    std::println(*mLogStream, "Couldn't insert voxel index: {}. Reason: index too large", pIndex);
-    return 1;
-  }
-
-  uint64_t byteIndex = pIndex >> 3;
-  uint bitIndex = pIndex & 0b111;
-  char mask = 1 << bitIndex;
-  if (!(mVoxelData[byteIndex] & mask)) ++mVoxelCount;
-  mVoxelData[byteIndex] |= mask;
-  return 0;
+void VoxelGrid::insert(uint64_t pIndex, uint8_t pCol) {
+  if (mVoxelData.at(pIndex) == 0) ++mVoxelCount;
+  mVoxelData.at(pIndex) = pCol;
+  if (pCol == 0) --mVoxelCount;
 }
 
-int VoxelGrid::insert(const glm::uvec3& pPos) {
-  if (pPos.x < 0 || pPos.x >= mResolution ||
-      pPos.y < 0 || pPos.y >= mResolution ||
-      pPos.z < 0 || pPos.z >= mResolution) {
-    std::lock_guard<std::mutex> lock(*mLogMutex);
-    std::println(*mLogStream, "Couldn't insert voxel: {}, {}, {}. Reason: voxel outside grid", pPos.x, pPos.y, pPos.z);
-    return 1;
-  }
-
-  uint64_t globalIndex = zorder(pPos);
-  // uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
-  uint64_t byteIndex = globalIndex >> 3;
-  uint bitIndex = globalIndex & 0b111;
-  char mask = 1 << bitIndex;
-  if (!(mVoxelData[byteIndex] & mask)) ++mVoxelCount;
-  mVoxelData[byteIndex] |= mask;
-  return 0;
+void VoxelGrid::insert(const glm::uvec3& pPos, uint8_t pCol) {
+  insert(zorder(pPos), pCol);
 }
 
-void VoxelGrid::voxelizeTriangle(std::array<glm::vec3, 3> pPoints) {
+void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, Texture* pTex) {
+  uint8_t col = 1;
+  if (pTex) col = mPalette.addColour(pTex->sample(pVerts[0].texCoord), 0.01);
   // Check if all points are the same
-  if (glm::floor(pPoints[0]) == glm::floor(pPoints[1]) && glm::floor(pPoints[0]) == glm::floor(pPoints[2])) {
-    insert(glm::floor(pPoints[0]));
+  if (glm::floor(pVerts[0].pos) == glm::floor(pVerts[1].pos) && glm::floor(pVerts[0].pos) == glm::floor(pVerts[2].pos)) {
+    insert(glm::floor(pVerts[0].pos), col);
     return;
   }
 
   // Find dominant axis
-  glm::vec3 minPoint = glm::min(pPoints[0], glm::min(pPoints[1], pPoints[2]));
-  glm::vec3 maxPoint = glm::max(pPoints[0], glm::max(pPoints[1], pPoints[2]));
+  glm::vec3 minPoint = glm::min(pVerts[0].pos, glm::min(pVerts[1].pos, pVerts[2].pos));
+  glm::vec3 maxPoint = glm::max(pVerts[0].pos, glm::max(pVerts[1].pos, pVerts[2].pos));
   glm::vec3 boxSize = maxPoint - minPoint;
 
   uint8_t dominantAxisIndex = 0;
@@ -332,27 +333,27 @@ void VoxelGrid::voxelizeTriangle(std::array<glm::vec3, 3> pPoints) {
   nonDominantAxisIndices[1] = (dominantAxisIndex + 2) % 3;
 
   // Sort by dominant axis
-  if (v3index(pPoints[0], dominantAxisIndex) > v3index(pPoints[1], dominantAxisIndex)) std::swap(pPoints[0], pPoints[1]);
-  if (v3index(pPoints[1], dominantAxisIndex) > v3index(pPoints[2], dominantAxisIndex)) std::swap(pPoints[1], pPoints[2]);
-  if (v3index(pPoints[0], dominantAxisIndex) > v3index(pPoints[1], dominantAxisIndex)) std::swap(pPoints[0], pPoints[1]);
+  if (pVerts[0].pos[dominantAxisIndex] > pVerts[1].pos[dominantAxisIndex]) std::swap(pVerts[0].pos, pVerts[1].pos);
+  if (pVerts[1].pos[dominantAxisIndex] > pVerts[2].pos[dominantAxisIndex]) std::swap(pVerts[1].pos, pVerts[2].pos);
+  if (pVerts[0].pos[dominantAxisIndex] > pVerts[1].pos[dominantAxisIndex]) std::swap(pVerts[0].pos, pVerts[1].pos);
 
   // Calculate direction and inverse for lines
-  glm::vec3 lhDir = pPoints[2] - pPoints[0];
+  glm::vec3 lhDir = pVerts[2].pos - pVerts[0].pos;
   glm::vec3 lhDirInv = 1.f/lhDir;
 
-  glm::vec3 lmDir = pPoints[1] - pPoints[0];
+  glm::vec3 lmDir = pVerts[1].pos - pVerts[0].pos;
   glm::vec3 lmDirInv = 1.f/lmDir;
 
-  glm::vec3 mhDir = pPoints[2] - pPoints[1];
+  glm::vec3 mhDir = pVerts[2].pos - pVerts[1].pos;
   glm::vec3 mhDirInv = 1.f/mhDir;
 
   // Iterate over along the dominant axis traversing between the two lines
-  for (float dominantAxisValue = std::max(0.f, v3index(pPoints[0], dominantAxisIndex)); dominantAxisValue <= std::min((float)mResolution, v3index(pPoints[2], dominantAxisIndex)); ++dominantAxisValue) {
+  for (float dominantAxisValue = std::max(0.f, pVerts[0].pos[dominantAxisIndex]); dominantAxisValue <= std::min((float)mResolution, pVerts[2].pos[dominantAxisIndex]); ++dominantAxisValue) {
     glm::vec3* l1Dir = &lmDir;
     glm::vec3* l1DirInv = &lmDirInv;
     glm::vec3* l2Dir = &lhDir;
     glm::vec3* l2DirInv = &lhDirInv;
-    if ((v3index(pPoints[1], dominantAxisIndex) < dominantAxisValue) || (v3index(lmDir, dominantAxisIndex) == 0)) {
+    if ((pVerts[1].pos[dominantAxisIndex] < dominantAxisValue) || (lmDir[dominantAxisIndex] == 0)) {
       l1Dir = &mhDir;
       l1DirInv = &mhDirInv;
     }
@@ -364,16 +365,16 @@ void VoxelGrid::voxelizeTriangle(std::array<glm::vec3, 3> pPoints) {
     
     // L2
     // Normal plane
-    float t = (dominantAxisValue - v3index(pPoints[0], dominantAxisIndex)) * v3index(*l2DirInv, dominantAxisIndex);
-    glm::vec2 l2Posa = glm::vec2(v3index(pPoints[0], nonDominantAxisIndices[0]), v3index(pPoints[0], nonDominantAxisIndices[1])) // Origin
-                      + t * glm::vec2(v3index(*l2Dir, nonDominantAxisIndices[0]), v3index(*l2Dir, nonDominantAxisIndices[1]));
+    float t = (dominantAxisValue - pVerts[0].pos[dominantAxisIndex]) * (*l2DirInv)[dominantAxisIndex];
+    glm::vec2 l2Posa = glm::vec2(pVerts[0].pos[nonDominantAxisIndices[0]], pVerts[0].pos[nonDominantAxisIndices[1]]) // Origin
+                      + t * glm::vec2((*l2Dir)[nonDominantAxisIndices[0]], (*l2Dir)[nonDominantAxisIndices[1]]);
     // Next plane
-    t = (std::min(dominantAxisValue + 1, v3index(pPoints[2], dominantAxisIndex)) - v3index(pPoints[0], dominantAxisIndex)) * v3index(*l2DirInv, dominantAxisIndex);
-    glm::vec2 l2Posb = glm::vec2(v3index(pPoints[0], nonDominantAxisIndices[0]), v3index(pPoints[0], nonDominantAxisIndices[1])) // Origin
-                      + t * glm::vec2(v3index(*l2Dir, nonDominantAxisIndices[0]), v3index(*l2Dir, nonDominantAxisIndices[1]));
+    t = (std::min(dominantAxisValue + 1, pVerts[2].pos[dominantAxisIndex]) - pVerts[0].pos[dominantAxisIndex]) * (*l2DirInv)[dominantAxisIndex];
+    glm::vec2 l2Posb = glm::vec2(pVerts[0].pos[nonDominantAxisIndices[0]], pVerts[0].pos[nonDominantAxisIndices[1]]) // Origin
+                      + t * glm::vec2((*l2Dir)[nonDominantAxisIndices[0]], (*l2Dir)[nonDominantAxisIndices[1]]);
 
-    if ((v3index(pPoints[1], dominantAxisIndex) >= dominantAxisValue) && (v3index(pPoints[1], dominantAxisIndex) <= dominantAxisValue + 1)) {
-      l1Pos = glm::vec2(v3index(pPoints[1], nonDominantAxisIndices[0]), v3index(pPoints[1], nonDominantAxisIndices[1]));
+    if ((pVerts[1].pos[dominantAxisIndex] >= dominantAxisValue) && (pVerts[1].pos[dominantAxisIndex] <= dominantAxisValue + 1)) {
+      l1Pos = glm::vec2(pVerts[1].pos[nonDominantAxisIndices[0]], pVerts[1].pos[nonDominantAxisIndices[1]]);
 
       // Choose which has the greatest length
       if (glm::length(l2Posa - l1Pos) >= glm::length(l2Posb - l1Pos)) l2Pos = l2Posa;
@@ -382,13 +383,13 @@ void VoxelGrid::voxelizeTriangle(std::array<glm::vec3, 3> pPoints) {
     else {
       // L1
       // Normal plane
-      t = (dominantAxisValue - v3index(pPoints[1], dominantAxisIndex)) * v3index(*l1DirInv, dominantAxisIndex);
-      glm::vec2 l1Posa = glm::vec2(v3index(pPoints[1], nonDominantAxisIndices[0]), v3index(pPoints[1], nonDominantAxisIndices[1])) // Origin
-                        + t * glm::vec2(v3index(*l1Dir, nonDominantAxisIndices[0]), v3index(*l1Dir, nonDominantAxisIndices[1]));
+      t = (dominantAxisValue - pVerts[1].pos[dominantAxisIndex]) * (*l1DirInv)[dominantAxisIndex];
+      glm::vec2 l1Posa = glm::vec2(pVerts[1].pos[nonDominantAxisIndices[0]], pVerts[1].pos[nonDominantAxisIndices[1]]) // Origin
+                        + t * glm::vec2((*l1Dir)[nonDominantAxisIndices[0]], (*l1Dir)[nonDominantAxisIndices[1]]);
       // Next plane
-      t = (std::min(dominantAxisValue + 1, v3index(pPoints[2], dominantAxisIndex)) - v3index(pPoints[1], dominantAxisIndex)) * v3index(*l1DirInv, dominantAxisIndex);
-      glm::vec2 l1Posb = glm::vec2(v3index(pPoints[1], nonDominantAxisIndices[0]), v3index(pPoints[1], nonDominantAxisIndices[1])) // Origin
-                        + t * glm::vec2(v3index(*l1Dir, nonDominantAxisIndices[0]), v3index(*l1Dir, nonDominantAxisIndices[1]));
+      t = (std::min(dominantAxisValue + 1, pVerts[2].pos[dominantAxisIndex]) - pVerts[1].pos[dominantAxisIndex]) * (*l1DirInv)[dominantAxisIndex];
+      glm::vec2 l1Posb = glm::vec2(pVerts[1].pos[nonDominantAxisIndices[0]], pVerts[1].pos[nonDominantAxisIndices[1]]) // Origin
+                        + t * glm::vec2((*l1Dir)[nonDominantAxisIndices[0]], (*l1Dir)[nonDominantAxisIndices[1]]);
 
       // Choose which has the greatest length
       if (glm::length(l2Posa - l1Posa) >= glm::length(l2Posb - l1Posa)) l2Pos = l2Posa;
@@ -400,21 +401,28 @@ void VoxelGrid::voxelizeTriangle(std::array<glm::vec3, 3> pPoints) {
 
     // TODO: This could be optimized by mixing it in rahter than just doing it after
     uint index = 4;
-    if ((v3index(pPoints[0], dominantAxisIndex) >= dominantAxisValue) && (v3index(pPoints[0], dominantAxisIndex) <= dominantAxisValue + 1))
+    if ((pVerts[0].pos[dominantAxisIndex] >= dominantAxisValue) && (pVerts[0].pos[dominantAxisIndex] <= dominantAxisValue + 1))
       index = 0;
-    if ((v3index(pPoints[2], dominantAxisIndex) >= dominantAxisValue) && (v3index(pPoints[2], dominantAxisIndex) <= dominantAxisValue + 1))
+    if ((pVerts[2].pos[dominantAxisIndex] >= dominantAxisValue) && (pVerts[2].pos[dominantAxisIndex] <= dominantAxisValue + 1))
       index = 2;
     if (index != 4) {
-      glm::vec2 v2(v3index(pPoints[index], nonDominantAxisIndices[0]), v3index(pPoints[index], nonDominantAxisIndices[1]));
+      glm::vec2 v2(pVerts[index].pos[nonDominantAxisIndices[0]], pVerts[index].pos[nonDominantAxisIndices[1]]);
       if (glm::length(l2Pos - v2) >= glm::length(l2Pos - l1Pos))      l1Pos = v2;
       else if (glm::length(l1Pos - v2) >= glm::length(l1Pos - l2Pos)) l2Pos = v2;
     }
 
     glm::vec2 dir = l2Pos - l1Pos; // Dir from l1 to l2 intersection pPoints
     glm::vec2 dirInv = 1.f/dir;
-
-    drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv);
+    
+    drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv, pTex, col);
   }
+}
+
+bool VoxelGrid::isRegionAllSame(const glm::uvec3& pOrigin, uint pSize) {
+  uint8_t first = queryVoxelData(pOrigin);
+  for (glm::uvec3 p(0); p.z < pSize; ++p.z) for (p.y = 0; p.y < pSize; ++p.y) for (p.x = 0; p.x < pSize; ++p.x)
+    if (queryVoxelData(pOrigin + p) != first) return false;
+  return true;
 }
 
 uint64_t VoxelGrid::getVoxelCount() {
@@ -433,45 +441,36 @@ float VoxelGrid::getMaxDepth() {
   return mMaxDepth;
 }
 
-char* VoxelGrid::getVoxelDataByte(const glm::uvec3& pPos) {
-  uint64_t globalIndex = zorder(pPos);
-  uint64_t byteIndex = globalIndex >> 3;
-  uint localIndex = globalIndex & 0b111;
-  return &mVoxelData[byteIndex];
+uint8_t VoxelGrid::queryVoxelData(uint64_t pIndex) {
+  return mVoxelData.at(pIndex);
 }
 
-const bool VoxelGrid::queryVoxel(const glm::uvec3& pPos) {
-  if (pPos.x < 0 || pPos.x >= mResolution ||
-      pPos.y < 0 || pPos.y >= mResolution ||
-      pPos.z < 0 || pPos.z >= mResolution)
-    throw 1;
-  
-  uint64_t globalIndex = zorder(pPos);
-  // uint globalIndex = pPos.x + pPos.y * mResolution + pPos.z * mResolution * mResolution;
-  uint64_t byteIndex = globalIndex >> 3;
-  uint localIndex = globalIndex & 0b111;
-  char mask = 1 << localIndex;
-  return mVoxelData[byteIndex] & mask;
+uint8_t VoxelGrid::queryVoxelData(const glm::uvec3& pPos) {
+  return queryVoxelData(zorder(pPos));
 }
 
-// const std::vector<std::vector<std::vector<bool>>>& VoxelGrid::getVoxelData() {
-  // return mVoxelGrid;
-// }
-
-const std::vector<char>& VoxelGrid::getVoxelDataBits() {
+const std::vector<uint8_t>& VoxelGrid::getVoxelData() {
   return mVoxelData;
 }
 
 std::vector<uint64_t> VoxelGrid::generateCompressedVoxelData(uint64_t* pVoxelsComplete) {
   std::vector<uint64_t> counts;
   uint64_t count = 0;
-  bool value = false;
-  for (char i: mVoxelData) {
-    for (uint8_t mask = 1; mask != 0; mask <<= 1, ++count, ++*pVoxelsComplete) if (i & mask != value) {
-      counts.push_back(count);
-      value = !value;
-      count = 0;
+  uint8_t value = 0;
+  for (uint8_t i: mVoxelData) {
+    if (i == value) {
+      ++count;
+      continue;
     }
+    counts.push_back(value);
+    counts.push_back(count);
+    value = i;
+    count = 1;
+  }
+
+  if (value) {
+    counts.push_back(value);
+    counts.push_back(count);
   }
 
   return counts;
@@ -483,28 +482,24 @@ void VoxelGrid::init() {
   mVolume = mResolution2 * res;
   mMaxDepth = std::log2f(mResolution);
 
-  mVoxelData.clear();
-
-  // Init mVoxelData
-  mVoxelData = std::vector<char>(mVolume >> 3, 0);
-}
-
-void VoxelGrid::openFileWrite(std::ofstream& pFout, const std::string& pPath) {
-  pFout.open(pPath, std::ios::out | std::ios::binary);
-  if (!pFout.is_open())
-    throw "Could not open output file";
+  mVoxelData.resize(mVolume, 0);
 }
 
 void VoxelGrid::writeMetaData(std::ofstream& pFout) {
-  // Write resolution
   pFout.write(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
+  pFout.write(reinterpret_cast<char*>(&mVoxelCount), sizeof(uint64_t));
 }
 
-void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv) {
+void VoxelGrid::readMetaData(std::ifstream& pFin) {
+  pFin.read(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
+  pFin.read(reinterpret_cast<char*>(&mVoxelCount), sizeof(uint64_t));
+}
+
+void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, Texture* pTex, uint8_t pCol) {
   // std::println("Started drawLine2");
   glm::vec3 v = glm::floor(toVec3(pDominantAxisValue, pStart.x, pStart.y, pDominantAxisIndex));
 
-  insert(v);
+  insert(v, pCol);
 
   glm::vec2 voxelPos = glm::floor(pStart);
 
@@ -520,7 +515,7 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
     if (plane1 == pEnd.x && plane2 == pEnd.y) { // If the destination point lies exactly on the planes we increment both x and y
       voxelPos += glm::sign(pDirInv);
       v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
-      insert(v);
+      insert(v, pCol);
       break;
     }
     
@@ -532,7 +527,7 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
 
     v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
 
-    insert(v);
+    insert(v, pCol);
   }
 
   // std::println("Started");
@@ -566,21 +561,25 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
 
 glm::vec3 VoxelGrid::toVec3(float a, float b, float c, uint8_t pDominantAxisIndex) {
   glm::vec3 v;
-  if (pDominantAxisIndex == 0) {
-    v.x = a;
-    v.y = b;
-    v.z = c;
-  }
-  else if (pDominantAxisIndex == 1) {
-    v.x = c;
-    v.y = a;
-    v.z = b;
-  }
-  else if (pDominantAxisIndex == 2) {
-    v.x = b;
-    v.y = c;
-    v.z = a;
-  }
+  v[pDominantAxisIndex] = a;
+  v[(pDominantAxisIndex + 1) % 3] = b;
+  v[(pDominantAxisIndex + 2) % 3] = c;
+  // glm::vec3 v;
+  // if (pDominantAxisIndex == 0) {
+  //   v.x = a;
+  //   v.y = b;
+  //   v.z = c;
+  // }
+  // else if (pDominantAxisIndex == 1) {
+  //   v.x = c;
+  //   v.y = a;
+  //   v.z = b;
+  // }
+  // else if (pDominantAxisIndex == 2) {
+  //   v.x = b;
+  //   v.y = c;
+  //   v.z = a;
+  // }
   return v;
 }
 

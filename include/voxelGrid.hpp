@@ -1,6 +1,8 @@
 #pragma once
 
-#include "mesh.hpp"
+#include "model.hpp"
+#include "texture.hpp"
+#include "palette.hpp"
 
 #include <cassert>
 
@@ -12,13 +14,6 @@
 #include <bitset>
 
 namespace VMesh {
-  constexpr float& v3index(glm::tvec3<float>& v, uint8_t i) {
-    if (i == 0) return v.x;
-    if (i == 1) return v.y;
-    if (i == 2) return v.z;
-    return v.x;
-  }
-
   class VoxelGrid {
   public:
     VoxelGrid(uint pResolution, glm::vec3 pOrigin = glm::vec3(0,0,0));
@@ -26,8 +21,12 @@ namespace VMesh {
     void setOrigin(glm::vec3 pOrigin = glm::vec3(0,0,0));
     glm::vec3 getOrigin();
 
-    void voxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
-    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
+    void clear();
+
+    void IntersectVoxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
+    void IntersectVoxelizeModel(Model& pMesh, uint* pTrisComplete);
+    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, Texture* pTex = NULL);
+    void DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured);
 
     void writeToFile(const std::string& pPath);
     void writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete);
@@ -37,20 +36,25 @@ namespace VMesh {
 
     void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
 
-    int insert(uint64_t pIndex);
-    int insert(const glm::uvec3& pPos);
+    void insert(uint64_t pIndex, uint8_t pCol);
+    void insert(const glm::uvec3& pPos, uint8_t pCol);
 
-    void voxelizeTriangle(std::array<glm::vec3, 3> pPoints);
+    void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, Texture* pTex = NULL);
+
+    bool isRegionAllSame(const glm::uvec3& pOrigin, uint pSize);
 
     uint64_t getVoxelCount();
     uint64_t getVolume();
     uint getResolution();
     float getMaxDepth();
-    char* getVoxelDataByte(const glm::uvec3& pPos);
-    const bool queryVoxel(const glm::uvec3& pPos);
-    // const std::vector<std::vector<std::vector<bool>>>& getVoxelData();
-    const std::vector<char>& getVoxelDataBits();
+    bool queryVoxelPresence(uint64_t pIndex);
+    bool queryVoxelPresence(const glm::uvec3& pPos);
+    uint8_t queryVoxelData(uint64_t pIndex);
+    uint8_t queryVoxelData(const glm::uvec3& pPos);
+    const std::vector<uint8_t>& getVoxelData();
     std::vector<uint64_t> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
+
+    Palette mPalette;
 
     std::mutex mDefaultLogMutex;
     std::stringstream mDefaultLogStream;
@@ -67,20 +71,19 @@ namespace VMesh {
     bool axistestZ12(const glm::vec3& pTranslatedTriPoint1, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax);
     bool axistestZ0(const glm::vec3& pTranslatedTriPoint1, const glm::vec3& pTranslatedTriPoint2, float a, float b, float fa, float fb, float& pMin, float& pMax);
 
-    void openFileWrite(std::ofstream& pFout, const std::string& pPath);
     void writeMetaData(std::ofstream& pFout);
+    void readMetaData(std::ifstream& pFin);
 
     static glm::vec3 toVec3(float a, float b, float c, uint8_t pDominantAxisIndex);
 
-    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv);
+    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, Texture* pTex, uint8_t pCol);
 
     uint64_t zorder(const glm::uvec3& pPos);
 
     std::ostream* mLogStream;
     std::mutex* mLogMutex;
 
-    // std::vector<std::vector<std::vector<bool>>> mVoxelGrid;
-    std::vector<char> mVoxelData;
+    std::vector<uint8_t> mVoxelData;
     
     glm::vec3 mOrigin;
     uint mResolution = 0, mResolution2 = 0;

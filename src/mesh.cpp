@@ -12,7 +12,7 @@ uint Mesh::getMatIndex() {
 
 void Mesh::transformVertices(const glm::mat4& pM) {
   for (uint i = 0; i < mVerts.size(); ++i)
-    mVerts[i] = glm::vec3(pM * glm::vec4(mVerts[i], 1));
+    mVerts[i].pos = glm::vec3(pM * glm::vec4(mVerts[i].pos, 1));
 }
 
 void Mesh::addVertex(const Vertex& pVert) {
