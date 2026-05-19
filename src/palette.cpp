@@ -10,6 +10,10 @@ uint8_t Palette::addColour(const glm::vec3& pCol, float pThreshold) {
       pCol.y > 1 || pCol.y < 0 ||
       pCol.z > 1 || pCol.z < 0)
     throw std::invalid_argument("rgb values have to be normalized");
+  if (pThreshold == -1.f) { // Add even if it is a duplicate
+    mColours.push_back(pCol);
+    return mColours.size() - 1;
+  }
   for (uint i = 0; i < mColours.size(); ++i) {
     glm::vec3 diff = glm::abs(pCol - mColours[i]);
     if ((diff.x + diff.y + diff.z) / 3.f <= pThreshold) return i;

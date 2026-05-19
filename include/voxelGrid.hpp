@@ -4,8 +4,11 @@
 #include "texture.hpp"
 #include "palette.hpp"
 
+#include <glm/gtc/type_ptr.hpp>
+
 #include <cassert>
 
+#include <filesystem>
 #include <future>
 #include <sstream>
 #include <fstream>
@@ -25,21 +28,22 @@ namespace VMesh {
 
     void IntersectVoxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
     void IntersectVoxelizeModel(Model& pMesh, uint* pTrisComplete);
-    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, Texture* pTex = NULL);
-    void DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured);
+    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourThreshold, Texture* pTex = NULL);
+    void DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, float pAddColourThreshold);
 
     void writeToFile(const std::string& pPath);
     void writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete);
 
     void loadFromFile(const std::string& pPath);
     void loadFromFileCompressed(const std::string& pPath);
+    void loadFromVoxFile(const std::filesystem::path& pPath);
 
     void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
 
     void insert(uint64_t pIndex, uint8_t pCol);
     void insert(const glm::uvec3& pPos, uint8_t pCol);
 
-    void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, Texture* pTex = NULL);
+    void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourThreshold, Texture* pTex = NULL);
 
     bool isRegionAllSame(const glm::uvec3& pOrigin, uint pSize);
 

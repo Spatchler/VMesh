@@ -1,5 +1,8 @@
 #include "voxelGrid.hpp"
 
+#define OGT_VOX_IMPLEMENTATION
+#include <ogt_vox.h>
+
 using namespace VMesh;
 
 VoxelGrid::VoxelGrid(uint pResolution, glm::vec3 pOrigin)
@@ -180,7 +183,7 @@ bool VoxelGrid::axistestZ0(const glm::vec3& pTranslatedTriPoint0, const glm::vec
   return false;
 }
 
-void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, Texture* pTex) {
+void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourThreshold, Texture* pTex) {
   const std::vector<Vertex>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
@@ -205,16 +208,16 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, Texture* pTex)
     // Check if all points are to one side
     if (xp || xn || yp || yn || zp || zn) continue;
 
-    DDAvoxelizeTriangle(points, pTex);
+    DDAvoxelizeTriangle(points, pAddColourThreshold, pTex);
   }
 }
 
-void VoxelGrid::DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured) {
+void VoxelGrid::DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, float pAddColourThreshold) {
   for (uint i = 0; i < pModel.getNumMeshes(); ++i) {
     Mesh& m = pModel.getMesh(i);
     Texture* t = NULL;
     if (pColoured) t = &pModel.getDiffuseMap(m.getMatIndex());
-    DDAvoxelizeMesh(m, pTrisComplete, t);
+    DDAvoxelizeMesh(m, pTrisComplete, pAddColourThreshold, t);
   }
 }
 
@@ -294,6 +297,121 @@ void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
   fin.close();
 }
 
+void VoxelGrid::loadFromVoxFile(const std::filesystem::path& pPath) {
+  Timer timer;
+
+  // Open file
+  std::ifstream fin;
+  fin.open(pPath, std::ios::binary | std::ios::in | std::ios::ate);
+  if (!fin.is_open()) throw std::runtime_error("Could not open input file");
+  std::streamsize bufferSize = fin.tellg();
+  fin.seekg(0, std::ios::beg);
+  std::vector<uint8_t> buffer(bufferSize);
+  if (!fin.read(reinterpret_cast<char*>(buffer.data()), bufferSize)) throw std::runtime_error("Could not read input file");
+  fin.close();
+
+  // Read data
+  // const ogt_vox_scene* scene = ogt_vox_read_scene_with_flags(buffer.data(), bufferSize, k_read_scene_flags_groups);
+  const ogt_vox_scene* scene = ogt_vox_read_scene(buffer.data(), bufferSize);
+  buffer.clear();
+
+  // Create palette
+  for (uint i = 1; i < 256; ++i) {
+    glm::vec3 c;
+    c.x = scene->palette.color[i].r / 255.f;
+    c.y = scene->palette.color[i].g / 255.f;
+    c.z = scene->palette.color[i].b / 255.f;
+    mPalette.addColour(c, -1);
+  }
+
+  // std::println("Vox scene contains {} layers, {} groups, {} instances and {} models", scene->num_layers, scene->num_groups, scene->num_instances, scene->num_models);
+  std::println("Vox scene contains {} instances of {} models", scene->num_instances, scene->num_models);
+
+  // // Calculate group transforms
+  // std::vector<glm::mat4> groupTransforms(scene->num_groups);
+  // for (uint g = 0; g < scene->num_groups; ++g) {
+  //   const ogt_vox_group& group = scene->groups[g];
+  //   // if (group.hidden) continue;
+  //   glm::mat4& t = groupTransforms[g];
+  //   t = glm::mat4(1.0f);
+  //   ogt_vox_transform ogtt = ogt_vox_transform_get_identity();
+
+  //   // Get parent transforms
+  //   std::vector<uint> groupIndices;
+  //   groupIndices.push_back(g);
+  //   for (uint i = group.parent_group_index; i != k_invalid_group_index; i = scene->groups[i].parent_group_index)
+  //     groupIndices.push_back(i);
+
+  //   // Combine parent transforms in reverse order
+  //   for (uint i = 0; i < groupIndices.size(); ++i) {
+  //     const ogt_vox_transform& transform = scene->groups[groupIndices[i]].transform;
+  //     ogtt = ogt_vox_transform_multiply(ogtt, transform);
+  //     t *= glm::make_mat4(&transform.m00);
+  //   }
+  // }
+
+  // Calculate largest voxel position
+  glm::vec3 maxPos(0.f), minPos(std::numeric_limits<float>::infinity());
+  for (uint i = 0; i < scene->num_instances; ++i) {
+    const ogt_vox_instance& instance = scene->instances[i];
+
+    // Skip if hidden
+    if (instance.hidden || scene->groups[instance.group_index].hidden || (instance.layer_index != k_invalid_layer_index && scene->layers[instance.layer_index].hidden)) continue;
+
+    // Apply transform to largest and smallest voxel positions to find largest
+    const ogt_vox_model* model = scene->models[instance.model_index];
+    // glm::mat4 transform = glm::make_mat4(&instance.transform.m00) * groupTransforms[instance.group_index];
+    glm::mat4 transform = glm::make_mat4(&instance.transform.m00);
+    glm::vec3 pivot = glm::vec3(model->size_x / 2u, model->size_y / 2u, model->size_z / 2u);
+    glm::vec3 a = transform * glm::vec4(-pivot, 1.f);
+    glm::vec3 b = transform * glm::vec4(glm::vec3(model->size_x, model->size_y, model->size_z) - pivot, 1.f);
+    maxPos = glm::max(maxPos, glm::max(a, b));
+    minPos = glm::min(minPos, glm::min(a, b));
+  }
+
+  // Calculate required resolution and init grid
+  maxPos -= minPos;
+  for (mResolution = 1; mResolution < std::max(maxPos.x, std::max(maxPos.y, maxPos.z)); mResolution <<= 1) {}
+  std::println("Voxel grid using resolution: {}", mResolution);
+  init();
+
+  // Combine instances
+  std::print("Combining instances [ 0 / {} ]", scene->num_instances);
+  std::cout << std::flush;
+  for (uint i = 0; i < scene->num_instances; ++i) {
+    const ogt_vox_instance& instance = scene->instances[i];
+
+    // Skip if hidden
+    if (instance.hidden || scene->groups[instance.group_index].hidden || ((instance.layer_index != k_invalid_layer_index) && scene->layers[instance.layer_index].hidden)) continue;
+ 
+    const ogt_vox_model* m = scene->models[instance.model_index];
+    // glm::mat4 transform = instance.group_index == 0 ? glm::make_mat4(&instance.transform.m00) : glm::make_mat4(&instance.transform.m00) * groupTransforms[instance.group_index];
+    glm::mat4 transform = glm::make_mat4(&instance.transform.m00);
+    glm::vec3 pivot(m->size_x / 2u, m->size_y / 2u, m->size_z / 2u);
+
+    // Add to grid
+    for (glm::uvec3 i(0); i.z < m->size_z; ++i.z) for (i.y = 0; i.y < m->size_y; ++i.y) for (i.x = 0; i.x < m->size_x; ++i.x) {
+      const uint8_t& v = m->voxel_data[i.x + (i.y * m->size_x) + (i.z * m->size_x * m->size_y)];
+      if (!v) continue; // Skip for air
+      glm::vec3 p = glm::vec3(i) + glm::vec3(0.5f) - pivot;
+      p = transform * glm::vec4(p.x, p.y, p.z, 1.f);
+      p -= minPos;
+
+      if ((p.x < 0.f) || (p.y < 0.f) || (p.z < 0.f)) continue;
+      if ((p.x >= mResolution) || (p.y >= mResolution) || (p.z >= mResolution)) continue;
+      insert({p.y, p.z, p.x}, v);
+    }
+
+    std::print("\rCombining instances [ {} / {} ]", i+1, scene->num_instances);
+    std::cout << std::flush;
+  }
+  std::println("\e[2K\rCombining instances done");
+
+  ogt_vox_destroy_scene(scene);
+
+  std::println("Loading vox file took: {}", timer.getTime());
+}
+
 void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
   if (!pMutex) mLogMutex = &mDefaultLogMutex;
   else         mLogMutex = pMutex;
@@ -310,9 +428,9 @@ void VoxelGrid::insert(const glm::uvec3& pPos, uint8_t pCol) {
   insert(zorder(pPos), pCol);
 }
 
-void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, Texture* pTex) {
+void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourThreshold, Texture* pTex) {
   uint8_t col = 1;
-  if (pTex) col = mPalette.addColour(pTex->sample(pVerts[0].texCoord), 0.01);
+  if (pTex) col = mPalette.addColour(pTex->sample(pVerts[0].texCoord), pAddColourThreshold) + 1;
   // Check if all points are the same
   if (glm::floor(pVerts[0].pos) == glm::floor(pVerts[1].pos) && glm::floor(pVerts[0].pos) == glm::floor(pVerts[2].pos)) {
     insert(glm::floor(pVerts[0].pos), col);
@@ -420,7 +538,8 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, Texture* pTex)
 
 bool VoxelGrid::isRegionAllSame(const glm::uvec3& pOrigin, uint pSize) {
   uint8_t first = queryVoxelData(pOrigin);
-  for (glm::uvec3 p(0); p.z < pSize; ++p.z) for (p.y = 0; p.y < pSize; ++p.y) for (p.x = 0; p.x < pSize; ++p.x)
+  glm::uvec3 s = glm::min(glm::uvec3(mResolution) - pOrigin, pSize);
+  for (glm::uvec3 p(0); p.z < s.z; ++p.z) for (p.y = 0; p.y < s.y; ++p.y) for (p.x = 0; p.x < s.x; ++p.x)
     if (queryVoxelData(pOrigin + p) != first) return false;
   return true;
 }
