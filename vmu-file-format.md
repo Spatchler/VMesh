@@ -6,12 +6,12 @@ File format for storing 8-bit uncompressed voxel data. Often paired with a JASC-
 
 | Bytes    | Type       | Value                                                  |
 | :------- | :--------- | :----------------------------------------------------- |
-| 1*6      | char       | id 'VMESHC' : 'V' 'M' 'E' 'S' 'H' 'C', 'V' is first    |
+| 1\*6      | char       | id 'VMESHC' : 'V' 'M' 'E' 'S' 'H' 'C', 'V' is first    |
 | 4        | uint       | version number : 100                                   |
 | 4        | uint       | grid resolution (N)                                    |
 | 1        | uint       | palette size not including air                         |
 | 8        | uint       | voxel count                                            |
-| 1*N\*N\*N  | uint       | voxel data ordererd using z order curve                |
+| 1\*N\*N\*N  | uint       | voxel data ordererd using z order curve                |
 
 ### Loading example:
 
