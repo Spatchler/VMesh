@@ -12,7 +12,7 @@ void Model::load(const std::string& pPath, bool pShouldLoadTexture) {
   const aiScene* scene = importer.ReadFile(pPath, aiProcess_Triangulate);
 
   if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
-    throw std::runtime_error(std::format("ERROR::ASSIMP: {}", importer.GetErrorString()));
+    throw std::runtime_error(importer.GetErrorString());
 
   mDirectory = pPath.substr(0, pPath.find_last_of('/'));
 

@@ -31,8 +31,8 @@ namespace VMesh {
     void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourThreshold, Texture* pTex = NULL);
     void DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, float pAddColourThreshold);
 
-    void writeToFile(const std::string& pPath);
-    void writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete);
+    void writeToFile(std::string pPath);
+    void writeToFileCompressed(std::string pPath, uint64_t* pVoxelsComplete);
 
     void loadFromFile(const std::string& pPath);
     void loadFromFileCompressed(const std::string& pPath);
@@ -56,7 +56,7 @@ namespace VMesh {
     uint8_t queryVoxelData(uint64_t pIndex);
     uint8_t queryVoxelData(const glm::uvec3& pPos);
     const std::vector<uint8_t>& getVoxelData();
-    std::vector<uint64_t> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
+    std::pair<std::vector<uint8_t>, std::vector<uint64_t>> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
 
     Palette mPalette;
 

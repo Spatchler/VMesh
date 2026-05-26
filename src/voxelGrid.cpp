@@ -221,31 +221,52 @@ void VoxelGrid::DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColou
   }
 }
 
-void VoxelGrid::writeToFile(const std::string& pPath) {
+void VoxelGrid::writeToFile(std::string pPath) {
+  pPath.append(".vmu");
+  std::println("Writing voxel data to: \e[1;3;4;33m{}\e[0m", pPath);
+
   std::ofstream fout;
   fout.open(pPath, std::ios::out | std::ios::binary);
   if (!fout.is_open()) throw std::runtime_error("Could not open output file");
 
+  // Header
+  fout << "VMESHU";
+  const uint32_t fileVersion = 100;
+  fout.write(reinterpret_cast<const char*>(&fileVersion), sizeof(fileVersion));
+
   writeMetaData(fout);
 
-  fout.write(reinterpret_cast<char*>(&mVoxelData.at(0)), mVoxelData.size());
+  fout.write(reinterpret_cast<char*>(mVoxelData.data()), mVoxelData.size());
 
   fout.close();
 }
 
-void VoxelGrid::writeToFileCompressed(const std::string& pPath, uint64_t* pVoxelsComplete) {
+void VoxelGrid::writeToFileCompressed(std::string pPath, uint64_t* pVoxelsComplete) {
+  std::pair<std::vector<uint8_t>, std::vector<uint64_t>> compressedData = generateCompressedVoxelData(pVoxelsComplete);
+
+  pPath.append(".vmc");
+  {
+    std::lock_guard<std::mutex> lock(mDefaultLogMutex);
+    std::println("Writing voxel data to: \e[1;3;4;33m{}\e[0m", pPath);
+  }
+
   std::ofstream fout;
   fout.open(pPath, std::ios::out | std::ios::binary);
   if (!fout.is_open()) throw std::runtime_error("Could not open output file");
 
+  // Header
+  fout << "VMESHC";
+  const uint32_t fileVersion = 100;
+  fout.write(reinterpret_cast<const char*>(&fileVersion), sizeof(fileVersion));
+
   writeMetaData(fout);
 
-  std::vector<uint64_t> compressedData = generateCompressedVoxelData(pVoxelsComplete);
-
-  uint32_t countsLen = compressedData.size();
+  uint32_t countsLen = compressedData.first.size();
   fout.write(reinterpret_cast<char*>(&countsLen), sizeof(uint32_t));
 
-  fout.write(reinterpret_cast<char*>(&compressedData.at(0)), compressedData.size() * sizeof(uint64_t));
+  fout.write(reinterpret_cast<char*>(compressedData.first.data()), compressedData.first.size() * sizeof(uint8_t));
+
+  fout.write(reinterpret_cast<char*>(compressedData.second.data()), compressedData.second.size() * sizeof(uint64_t));
 
   fout.close();
 }
@@ -256,12 +277,20 @@ void VoxelGrid::loadFromFile(const std::string& pPath) {
   fin.open(pPath, std::ios::binary | std::ios::in);
   if (!fin.is_open()) throw std::runtime_error("Could not open input file");
 
+  std::string str;
+  str.resize(6);
+  fin.read(str.data(), 6);
+  if (str != "VMESHU") throw std::invalid_argument("Invalid voxel grid file");
+  uint32_t ver;
+  fin.read(reinterpret_cast<char*>(&ver), sizeof(ver));
+  if (ver != 100) throw std::invalid_argument("Invalid voxel grid file version");
+
   readMetaData(fin);
 
   init();
   
   // Load
-  fin.read(reinterpret_cast<char*>(&mVoxelData.at(0)), mVolume);
+  fin.read(reinterpret_cast<char*>(mVoxelData.data()), mVolume);
 
   fin.close();
 }
@@ -272,6 +301,14 @@ void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
   fin.open(pPath, std::ios::binary | std::ios::in);
   if (!fin.is_open()) throw std::runtime_error("Could not open input file");
 
+  std::string str;
+  str.resize(6);
+  fin.read(str.data(), 6);
+  if (str != "VMESHC") throw std::invalid_argument("Invalid voxel grid file");
+  uint32_t ver;
+  fin.read(reinterpret_cast<char*>(&ver), sizeof(ver));
+  if (ver != 100) throw std::invalid_argument("Invalid voxel grid file version");
+
   readMetaData(fin);
 
   // Read counts len
@@ -281,17 +318,20 @@ void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
   init();
 
   // Load
+  std::vector<uint8_t> values;
+  values.resize(countsLen);
+  fin.read(reinterpret_cast<char*>(values.data()), countsLen * sizeof(uint8_t));
+
   std::vector<uint64_t> counts;
   counts.resize(countsLen);
-  fin.read(reinterpret_cast<char*>(&counts.at(0)), countsLen * sizeof(uint64_t));
-
-  bool isAir = true;
+  fin.read(reinterpret_cast<char*>(counts.data()), countsLen * sizeof(uint64_t));
 
   uint64_t index = 0;
-  for (uint64_t i: counts) {
-    if (!isAir) for (uint64_t j = 0; j < i; ++j) insert(index + j, 1);
-    index += i;
-    isAir = !isAir;
+  for (uint i = 0; i < countsLen; ++i) {
+    const uint8_t& value = values[i];
+    const uint64_t& count = counts[i];
+    if (value != 0) for (uint64_t j = 0; j < count; ++j) insert(index + j, value);
+    index += count;
   }
 
   fin.close();
@@ -572,24 +612,26 @@ const std::vector<uint8_t>& VoxelGrid::getVoxelData() {
   return mVoxelData;
 }
 
-std::vector<uint64_t> VoxelGrid::generateCompressedVoxelData(uint64_t* pVoxelsComplete) {
-  std::vector<uint64_t> counts;
+std::pair<std::vector<uint8_t>, std::vector<uint64_t>> VoxelGrid::generateCompressedVoxelData(uint64_t* pVoxelsComplete) {
+  std::pair<std::vector<uint8_t>, std::vector<uint64_t>> counts;
   uint64_t count = 0;
   uint8_t value = 0;
   for (uint8_t i: mVoxelData) {
     if (i == value) {
       ++count;
+      ++*pVoxelsComplete;
       continue;
     }
-    counts.push_back(value);
-    counts.push_back(count);
+    counts.first.push_back(value);
+    counts.second.push_back(count);
     value = i;
     count = 1;
+    ++*pVoxelsComplete;
   }
 
   if (value) {
-    counts.push_back(value);
-    counts.push_back(count);
+    counts.first.push_back(value);
+    counts.second.push_back(count);
   }
 
   return counts;
@@ -606,11 +648,16 @@ void VoxelGrid::init() {
 
 void VoxelGrid::writeMetaData(std::ofstream& pFout) {
   pFout.write(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
+  uint32_t paletteSize = mPalette.size();
+  pFout.write(reinterpret_cast<char*>(&paletteSize), sizeof(uint32_t));
   pFout.write(reinterpret_cast<char*>(&mVoxelCount), sizeof(uint64_t));
 }
 
 void VoxelGrid::readMetaData(std::ifstream& pFin) {
   pFin.read(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
+  uint32_t paletteSize;
+  pFin.read(reinterpret_cast<char*>(&paletteSize), sizeof(uint32_t));
+  for (uint i = 0; i < paletteSize; ++i) mPalette.addColour(glm::vec3(0.f), -1);
   pFin.read(reinterpret_cast<char*>(&mVoxelCount), sizeof(uint64_t));
 }
 
