@@ -5,35 +5,30 @@ using namespace VMesh;
 Palette::Palette() {
 }
 
-uint8_t Palette::addColour(const glm::vec3& pCol, float pThreshold) {
-  if (pCol.x > 1 || pCol.x < 0 ||
-      pCol.y > 1 || pCol.y < 0 ||
-      pCol.z > 1 || pCol.z < 0)
+uint8_t Palette::addColour(const glm::vec3& pCol, float pDistance2) {
+  if (pCol.x > 1.f || pCol.x < 0.f ||
+      pCol.y > 1.f || pCol.y < 0.f ||
+      pCol.z > 1.f || pCol.z < 0.f)
     throw std::invalid_argument("rgb values have to be normalized");
-  if (pThreshold == -1.f) { // Add even if it is a duplicate
-    mColours.push_back(pCol);
-    return mColours.size() - 1;
-  }
-  for (uint i = 0; i < mColours.size(); ++i) {
-    glm::vec3 diff = glm::abs(pCol - mColours[i]);
-    if ((diff.x + diff.y + diff.z) / 3.f <= pThreshold) return i;
-  }
+
+  if (pDistance2 != -1.f) for (uint i = 0; i < mColours.size(); ++i)
+    if (glm::distance2(pCol, mColours[i]) <= pDistance2) return i;
+
   mColours.push_back(pCol);
   return mColours.size() - 1;
 }
 
 uint8_t Palette::getClosestColour(const glm::vec3& pCol) {
-  float minDiff = 1.f;
-  uint8_t minDiffIndex = 0;
+  float minDist2 = 1.f;
+  uint8_t minDist2Index = 0;
   for (uint i = 0; i < mColours.size(); ++i) {
-    glm::vec3 diff = glm::abs(pCol - mColours[i]);
-    float diffPercent = (diff.x + diff.y + diff.z) / 3.f;
-    if (diffPercent < minDiff) {
-      minDiff = diffPercent;
-      minDiffIndex = i;
+    float dist2 = glm::distance2(pCol, mColours[i]);
+    if (dist2 < minDist2) {
+      minDist2 = dist2;
+      minDist2Index = i;
     }
   }
-  return minDiffIndex;
+  return minDist2Index;
 }
 
 glm::vec3 Palette::getColour(uint8_t pIndex) {
