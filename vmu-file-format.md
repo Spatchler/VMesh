@@ -1,7 +1,9 @@
 ### Description:
-File format for storing uncompressed voxel data. Often paired with a JASC-PAL file.
+
+File format for storing 8-bit uncompressed voxel data. Often paired with a JASC-PAL file.
 
 ### Contens:
+
 | Bytes    | Type       | Value                                                  |
 | :------- | :--------- | :----------------------------------------------------- |
 | 1*6      | char       | id 'VMESHC' : 'V' 'M' 'E' 'S' 'H' 'C', 'V' is first    |
@@ -9,9 +11,10 @@ File format for storing uncompressed voxel data. Often paired with a JASC-PAL fi
 | 4        | uint       | grid resolution (N)                                    |
 | 1        | uint       | palette size not including air                         |
 | 8        | uint       | voxel count                                            |
-| 1*N*N*N  | uint       | voxel data ordererd using z order curve                |
+| 1*N\*N\*N  | uint       | voxel data ordererd using z order curve                |
 
 ### Loading example:
+
 ```cpp
 void load(uint32_t& resolution, uint8_t& paletteSize, uint64_t voxelCount, std::vector<uint8_t>& voxelData) {
   // Open file
@@ -44,7 +47,8 @@ void load(uint32_t& resolution, uint8_t& paletteSize, uint64_t voxelCount, std::
 ```
 
 ### Z-Order curve function example:
-source: ['Bit Twiddling Hacks'](https://graphics.stanford.edu/%7Eseander/bithacks.html#InterleaveBMN)
+
+source: [Bit Twiddling Hacks](https://graphics.stanford.edu/%7Eseander/bithacks.html#InterleaveBMN)
 ```cpp
 uint64_t interleave(uint64_t x, uint64_t y, uint64_t z) {
   static const uint64_t B[] = {0x00000000FF0000FF, 0x000000F00F00F00F,
