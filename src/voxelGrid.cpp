@@ -648,15 +648,15 @@ void VoxelGrid::init() {
 
 void VoxelGrid::writeMetaData(std::ofstream& pFout) {
   pFout.write(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
-  uint32_t paletteSize = mPalette.size();
-  pFout.write(reinterpret_cast<char*>(&paletteSize), sizeof(uint32_t));
+  uint8_t paletteSize = mPalette.size();
+  pFout.write(reinterpret_cast<char*>(&paletteSize), sizeof(uint8_t));
   pFout.write(reinterpret_cast<char*>(&mVoxelCount), sizeof(uint64_t));
 }
 
 void VoxelGrid::readMetaData(std::ifstream& pFin) {
   pFin.read(reinterpret_cast<char*>(&mResolution), sizeof(uint32_t));
-  uint32_t paletteSize;
-  pFin.read(reinterpret_cast<char*>(&paletteSize), sizeof(uint32_t));
+  uint8_t paletteSize;
+  pFin.read(reinterpret_cast<char*>(&paletteSize), sizeof(uint8_t));
   for (uint i = 0; i < paletteSize; ++i) mPalette.addColour(glm::vec3(0.f), -1);
   pFin.read(reinterpret_cast<char*>(&mVoxelCount), sizeof(uint64_t));
 }

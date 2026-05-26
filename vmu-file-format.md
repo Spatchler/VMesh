@@ -48,7 +48,7 @@ void load(const std::filesytsem::path& path, uint32_t& resolution, uint8_t& pale
 
 ### Z-Order curve function example:
 
-source: [Bit Twiddling Hacks](https://graphics.stanford.edu/%7Eseander/bithacks.html#InterleaveBMN)
+Modified from [Bit Twiddling Hacks](https://graphics.stanford.edu/%7Eseander/bithacks.html#InterleaveBMN)
 ```cpp
 uint64_t interleave(uint64_t x, uint64_t y, uint64_t z) {
   static const uint64_t B[] = {0x00000000FF0000FF, 0x000000F00F00F00F,
