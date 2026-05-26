@@ -4,22 +4,22 @@ File format for storing 8-bit uncompressed voxel data. Often paired with a JASC-
 
 ### Contens:
 
-| Bytes    | Type       | Value                                                  |
-| :------- | :--------- | :----------------------------------------------------- |
-| 1\*6      | char       | id 'VMESHC' : 'V' 'M' 'E' 'S' 'H' 'C', 'V' is first    |
-| 4        | uint       | version number : 100                                   |
-| 4        | uint       | grid resolution (N)                                    |
-| 1        | uint       | palette size not including air                         |
-| 8        | uint       | voxel count                                            |
-| 1\*N\*N\*N  | uint       | voxel data ordererd using z order curve                |
+| Bytes      | Type       | Value                                                  |
+| :--------- | :--------- | :----------------------------------------------------- |
+| 1\*6       | char       | id 'VMESHU' : 'V' 'M' 'E' 'S' 'H' 'U', 'V' is first    |
+| 4          | uint       | version number : 100                                   |
+| 4          | uint       | grid resolution (N)                                    |
+| 1          | uint       | palette size not including air                         |
+| 8          | uint       | voxel count                                            |
+| 1\*N\*N\*N | uint       | voxel data ordererd using z order curve                |
 
 ### Loading example:
 
 ```cpp
-void load(uint32_t& resolution, uint8_t& paletteSize, uint64_t voxelCount, std::vector<uint8_t>& voxelData) {
+void load(const std::filesytsem::path& path, uint32_t& resolution, uint8_t& paletteSize, uint64_t voxelCount, std::vector<uint8_t>& voxelData) {
   // Open file
   std::ifstream fin;
-  fin.open(pPath, std::ios::binary | std::ios::in);
+  fin.open(path, std::ios::binary | std::ios::in);
   if (!fin.is_open()) throw std::runtime_error("Could not open file");
   
   // Check header
