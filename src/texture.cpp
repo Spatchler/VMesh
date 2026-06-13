@@ -19,12 +19,10 @@ Texture::Texture(const glm::vec3& pColour)
 
 glm::vec3 Texture::sample(const glm::vec2& pTexCoord) {
   if (mIsColour) return mColour;
-  // std::println("sampling");
-  glm::ivec2 pixelCoord = glm::ivec2(glm::abs(pTexCoord)) * mSize;
-  uint i = ((pixelCoord.y * mSize.y) + pixelCoord.x) * mNrComponents % mArea;
-  uint8_t r = *(mData+i), g = *(mData+i+1), b = *(mData+i+2);
-  // std::println();
-  // uint8_t r = mData[i], g = mData[++i], b = mData[++i];
+  // std::println("pTexCoord: {}, {}", pTexCoord.x, pTexCoord.y);
+  glm::ivec2 pixelCoord = pTexCoord * (glm::vec2(mSize) - glm::vec2(1));
+  uint i = ((pixelCoord.y * mSize.x + pixelCoord.x) % mArea) * 3; // 3 because we forced 3 channels not mNrComponents
+  uint8_t r = mData[i], g = mData[++i], b = mData[++i];
   return glm::vec3(r, g, b) / 255.f;
 }
 
