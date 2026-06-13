@@ -62,9 +62,9 @@ void Palette::readFromFile(const std::string& pPath) {
   uint numColours;
   std::string line;
   std::getline(fin, line);
-  if (line != "JASC-PAL") throw std::invalid_argument("Palette file incorrect format");
+  if (line.substr(0,8) != "JASC-PAL") throw std::invalid_argument("Palette file incorrect format");
   std::getline(fin, line);
-  if (line != "0100") throw std::invalid_argument("Palette file incorrect format version");
+  if (line.substr(0,4) != "0100") throw std::invalid_argument("Palette file incorrect format version");
   std::getline(fin, line);
   numColours = std::stoi(line);
   mColours.resize(numColours);
