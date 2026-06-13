@@ -28,8 +28,8 @@ namespace VMesh {
 
     void IntersectVoxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
     void IntersectVoxelizeModel(Model& pMesh, uint* pTrisComplete);
-    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourThreshold, Texture* pTex = NULL);
-    void DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, float pAddColourThreshold);
+    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
+    void DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance);
 
     void writeToFile(std::string pPath);
     void writeToFileCompressed(std::string pPath, uint64_t* pVoxelsComplete);
@@ -43,7 +43,7 @@ namespace VMesh {
     void insert(uint64_t pIndex, uint8_t pCol);
     void insert(const glm::uvec3& pPos, uint8_t pCol);
 
-    void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourThreshold, Texture* pTex = NULL);
+    void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
 
     bool isRegionAllSame(const glm::uvec3& pOrigin, uint pSize);
 
@@ -78,9 +78,14 @@ namespace VMesh {
     void writeMetaData(std::ofstream& pFout);
     void readMetaData(std::ifstream& pFin);
 
+    // Point and triangle vertices all in world space
+    glm::vec3 computeBarycentric(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts);
+    glm::vec2 computeTexCoord(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts);
+    uint8_t sample(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts, bool pCreatePalette, float pAddColourDistance, Texture* pTex);
+
     static glm::vec3 toVec3(float a, float b, float c, uint8_t pDominantAxisIndex);
 
-    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, Texture* pTex, uint8_t pCol);
+    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, bool pCreatePalette, float pAddColourDistance, Texture* pTex, const std::array<Vertex, 3>& pVerts);
 
     uint64_t zorder(const glm::uvec3& pPos);
 

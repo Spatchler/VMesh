@@ -183,7 +183,7 @@ bool VoxelGrid::axistestZ0(const glm::vec3& pTranslatedTriPoint0, const glm::vec
   return false;
 }
 
-void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourThreshold, Texture* pTex) {
+void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex) {
   const std::vector<Vertex>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
@@ -208,16 +208,16 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColo
     // Check if all points are to one side
     if (xp || xn || yp || yn || zp || zn) continue;
 
-    DDAvoxelizeTriangle(points, pAddColourThreshold, pTex);
+    DDAvoxelizeTriangle(points, pAddColourDistance, pCreatePalette, pTex);
   }
 }
 
-void VoxelGrid::DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, float pAddColourThreshold) {
+void VoxelGrid::DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance) {
   for (uint i = 0; i < pModel.getNumMeshes(); ++i) {
     Mesh& m = pModel.getMesh(i);
     Texture* t = NULL;
     if (pColoured) t = &pModel.getDiffuseMap(m.getMatIndex());
-    DDAvoxelizeMesh(m, pTrisComplete, pAddColourThreshold, t);
+    DDAvoxelizeMesh(m, pTrisComplete, pAddColourDistance, pCreatePalette, t);
   }
 }
 
@@ -468,11 +468,16 @@ void VoxelGrid::insert(const glm::uvec3& pPos, uint8_t pCol) {
   insert(zorder(pPos), pCol);
 }
 
-void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourThreshold, Texture* pTex) {
-  uint8_t col = 1;
-  if (pTex) col = mPalette.addColour(pTex->sample(pVerts[0].texCoord), pAddColourThreshold) + 1;
+void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourDistance, bool pCreatePalette, Texture* pTex) {
   // Check if all points are the same
   if (glm::floor(pVerts[0].pos) == glm::floor(pVerts[1].pos) && glm::floor(pVerts[0].pos) == glm::floor(pVerts[2].pos)) {
+
+    uint8_t col = 1;
+    if (pTex) {
+      if (pCreatePalette) col = mPalette.addColour(pTex->sample(pVerts[0].texCoord), pAddColourDistance) + 1;
+      else col = mPalette.getClosestColour(pTex->sample(pVerts[0].texCoord)) + 1;
+    }
+
     insert(glm::floor(pVerts[0].pos), col);
     return;
   }
@@ -491,9 +496,9 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
   nonDominantAxisIndices[1] = (dominantAxisIndex + 2) % 3;
 
   // Sort by dominant axis
-  if (pVerts[0].pos[dominantAxisIndex] > pVerts[1].pos[dominantAxisIndex]) std::swap(pVerts[0].pos, pVerts[1].pos);
-  if (pVerts[1].pos[dominantAxisIndex] > pVerts[2].pos[dominantAxisIndex]) std::swap(pVerts[1].pos, pVerts[2].pos);
-  if (pVerts[0].pos[dominantAxisIndex] > pVerts[1].pos[dominantAxisIndex]) std::swap(pVerts[0].pos, pVerts[1].pos);
+  if (pVerts[0].pos[dominantAxisIndex] > pVerts[1].pos[dominantAxisIndex]) std::swap(pVerts[0], pVerts[1]);
+  if (pVerts[1].pos[dominantAxisIndex] > pVerts[2].pos[dominantAxisIndex]) std::swap(pVerts[1], pVerts[2]);
+  if (pVerts[0].pos[dominantAxisIndex] > pVerts[1].pos[dominantAxisIndex]) std::swap(pVerts[0], pVerts[1]);
 
   // Calculate direction and inverse for lines
   glm::vec3 lhDir = pVerts[2].pos - pVerts[0].pos;
@@ -572,7 +577,7 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
     glm::vec2 dir = l2Pos - l1Pos; // Dir from l1 to l2 intersection pPoints
     glm::vec2 dirInv = 1.f/dir;
     
-    drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv, pTex, col);
+    drawLine2(dominantAxisIndex, dominantAxisValue, l1Pos, l2Pos, dir, dirInv, pCreatePalette, pAddColourDistance, pTex, pVerts);
   }
 }
 
@@ -661,13 +666,59 @@ void VoxelGrid::readMetaData(std::ifstream& pFin) {
   pFin.read(reinterpret_cast<char*>(&mVoxelCount), sizeof(uint64_t));
 }
 
-void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, Texture* pTex, uint8_t pCol) {
+glm::vec3 VoxelGrid::computeBarycentric(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts) {
+  glm::vec3 barycentric;
+  // Tri 1
+  glm::vec3 e1 { pPoint - pVerts[1].pos };
+  glm::vec3 e2 { pPoint - pVerts[2].pos };
+  glm::vec3 normal { glm::cross(e1, e2) };
+  barycentric.x = 0.5f * glm::length(normal);
+  // Tri 2
+  e1 = pPoint - pVerts[0].pos;
+  e2 = pPoint - pVerts[2].pos;
+  normal = glm::cross(e1, e2);
+  barycentric.y = 0.5f * glm::length(normal);
+  // Tri 3
+  e1 = pPoint - pVerts[0].pos;
+  e2 = pPoint - pVerts[1].pos;
+  normal = glm::cross(e1, e2);
+  barycentric.z = 0.5f * glm::length(normal);
+  // Divide by large tri area
+  e1 = pVerts[2].pos - pVerts[0].pos;
+  e2 = pVerts[1].pos - pVerts[0].pos;
+  normal = glm::cross(e1, e2);
+  barycentric /= 0.5f * glm::length(normal);
+  return barycentric;
+}
+
+glm::vec2 VoxelGrid::computeTexCoord(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts) {
+  glm::vec3 barycentric { computeBarycentric(pPoint, pVerts) };
+  glm::vec2 texCoord;
+  texCoord = barycentric.x * pVerts[0].texCoord;
+  texCoord += barycentric.y * pVerts[1].texCoord;
+  texCoord += barycentric.z * pVerts[2].texCoord;
+  return texCoord;
+}
+
+uint8_t VoxelGrid::sample(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts, bool pCreatePalette, float pAddColourDistance, Texture* pTex) {
+  uint8_t col = 1;
+  if (pTex) {
+    // return mPalette.addColour(computeBarycentric(pPoint, pVerts), pAddColourDistance) + 1;
+    glm::vec2 texCoord { computeTexCoord(pPoint, pVerts) };
+    // glm::vec2 texCoord = glm::vec2(pPoint.x, pPoint.z) / glm::vec2(mResolution);
+    if (pCreatePalette) col = mPalette.addColour(pTex->sample(texCoord), pAddColourDistance) + 1;
+    else col = mPalette.getClosestColour(pTex->sample(texCoord)) + 1;
+  }
+  return col;
+}
+
+void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, bool pCreatePalette, float pAddColourDistance, Texture* pTex, const std::array<Vertex, 3>& pVerts) {
   // std::println("Started drawLine2");
-  glm::vec3 v = glm::floor(toVec3(pDominantAxisValue, pStart.x, pStart.y, pDominantAxisIndex));
+  glm::vec3 v { toVec3(pDominantAxisValue, pStart.x, pStart.y, pDominantAxisIndex) };
 
-  insert(v, pCol);
+  insert(v, sample(v, pVerts, pCreatePalette, pAddColourDistance, pTex));
 
-  glm::vec2 voxelPos = glm::floor(pStart);
+  glm::vec2 voxelPos { glm::floor(pStart) };
 
   while (  voxelPos != glm::floor(pEnd) &&
          !(voxelPos.x > mResolution && pDir.x > 0) &&
@@ -675,13 +726,13 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
          !(voxelPos.y > mResolution && pDir.y > 0) &&
          !(voxelPos.y < 0 && pDir.y < 0)) {
     // std::println("voxelPos: ({}, {}), l1Pos: ({}, {}), l2pos: ({}, {}), signDirInv: ({}, {})", voxelPos.x, voxelPos.y, pStart.x, pStart.y, pEnd.x, pEnd.y, glm::sign(pDirInv.x), glm::sign(pDirInv.y));
-    float plane1 = voxelPos.x + std::max(0.f, glm::sign(pDirInv.x));
-    float plane2 = voxelPos.y + std::max(0.f, glm::sign(pDirInv.y));
+    float plane1 { voxelPos.x + std::max(0.f, glm::sign(pDirInv.x)) };
+    float plane2 { voxelPos.y + std::max(0.f, glm::sign(pDirInv.y)) };
 
     if (plane1 == pEnd.x && plane2 == pEnd.y) { // If the destination point lies exactly on the planes we increment both x and y
       voxelPos += glm::sign(pDirInv);
-      v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
-      insert(v, pCol);
+      v = voxelPos == glm::floor(pEnd) ? toVec3(pDominantAxisValue, pEnd.x, pEnd.y, pDominantAxisIndex) : toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex);
+      insert(v, sample(v, pVerts, pCreatePalette, pAddColourDistance, pTex));
       break;
     }
     
@@ -691,9 +742,8 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
     if (t1 < t2) voxelPos.x += glm::sign(pDirInv.x);
     else         voxelPos.y += glm::sign(pDirInv.y);
 
-    v = glm::floor(toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex));
-
-    insert(v, pCol);
+    v = voxelPos == glm::floor(pEnd) ? toVec3(pDominantAxisValue, pEnd.x, pEnd.y, pDominantAxisIndex) : toVec3(pDominantAxisValue, voxelPos.x, voxelPos.y, pDominantAxisIndex);
+    insert(v, sample(v, pVerts, pCreatePalette, pAddColourDistance, pTex));
   }
 
   // std::println("Started");
