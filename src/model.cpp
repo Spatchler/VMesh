@@ -82,9 +82,9 @@ void Model::loadMaterials(const aiScene* pScene) {
     aiMaterial* mat = pScene->mMaterials[i];
     // Base Colour if has no textures
     if (mat->GetTextureCount(aiTextureType_DIFFUSE) == 0) {
-      aiColor3D colour(0.f,0.f,0.f);
+      aiColor4D colour(0.f,0.f,0.f, 0.f);
       mat->Get(AI_MATKEY_COLOR_DIFFUSE, colour);
-      mDiffuseMaps.emplace_back(glm::vec3(colour.r, colour.g, colour.b));
+      mDiffuseMaps.emplace_back(glm::vec4(colour.r, colour.g, colour.b, colour.a));
       continue;
     }
     // Texture

@@ -12,16 +12,16 @@ namespace VMesh {
   class Texture {
   public:
     Texture(const std::string& pPath);
-    Texture(const glm::vec3& pColour);
+    Texture(const glm::vec4& pColour);
 
-    glm::vec3 sample(const glm::vec2& pTexCoord);
+    glm::vec4 sample(const glm::vec2& pTexCoord);
 
     const std::string& getPath();
 
     void release();
   private:
     bool mIsColour;
-    glm::vec3 mColour;
+    glm::vec4 mColour;
     std::string mPath;
     uint8_t* mData;
     glm::ivec2 mSize;

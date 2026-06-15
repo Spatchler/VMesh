@@ -705,9 +705,11 @@ uint8_t VoxelGrid::sample(const glm::vec3& pPoint, const std::array<Vertex, 3>& 
   if (pTex) {
     // return mPalette.addColour(computeBarycentric(pPoint, pVerts), pAddColourDistance) + 1;
     glm::vec2 texCoord { computeTexCoord(pPoint, pVerts) };
+    glm::vec4 sample = pTex->sample(texCoord);
+    if (sample.w == 0.f) return 0;
     // glm::vec2 texCoord = glm::vec2(pPoint.x, pPoint.z) / glm::vec2(mResolution);
-    if (pCreatePalette) col = mPalette.addColour(pTex->sample(texCoord), pAddColourDistance) + 1;
-    else col = mPalette.getClosestColour(pTex->sample(texCoord)) + 1;
+    if (pCreatePalette) col = mPalette.addColour(glm::vec3(sample), pAddColourDistance) + 1;
+    else col = mPalette.getClosestColour(glm::vec3(sample)) + 1;
   }
   return col;
 }
