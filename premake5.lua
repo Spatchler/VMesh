@@ -44,15 +44,15 @@ project "VMesh"
         "src/**.cpp",
         "include/**.hpp",
         "include/**.cpp",
-        "deps/src/**.cpp",
-        "deps/src/**.c",
-        "deps/include/**.h",
-        "deps/include/**.hpp"
+        "dependencies/src/**.cpp",
+        "dependencies/src/**.c",
+        "dependencies/include/**.h",
+        "dependencies/include/**.hpp"
     }
 
     includedirs {
         "include",
-        "deps/include",
+        "dependencies/include",
         "/usr/include"
     }
 
