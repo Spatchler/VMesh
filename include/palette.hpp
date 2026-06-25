@@ -23,7 +23,9 @@ namespace VMesh {
 
     void writeToFile(const std::string& pPath);
     void readFromFile(const std::string& pPath);
-  private:
+  protected:
+    void addColourToList(uint8_t pIndex, const glm::vec3& pCol);
     std::vector<glm::vec3> mColours;
+    std::vector<uint> mColourCombinationCounts;
   };
 }

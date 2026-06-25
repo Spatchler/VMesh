@@ -11,10 +11,21 @@ uint8_t Palette::addColour(const glm::vec3& pCol, float pDistance2) {
       pCol.z > 1.f || pCol.z < 0.f)
     throw std::invalid_argument("rgb values have to be normalized");
 
-  if (pDistance2 != -1.f) for (uint i = 0; i < mColours.size(); ++i)
-    if (glm::distance2(pCol, mColours[i]) <= pDistance2) return i;
+  if (mColours.size() == 255) {
+    uint8_t i = getClosestColour(pCol);
+    addColourToList(i, pCol);
+    return i;
+  }
+
+  if (pDistance2 != -1.f) for (uint i = 0; i < mColours.size(); ++i) {
+    if (glm::distance2(pCol, mColours[i]) <= pDistance2) {
+      addColourToList(i, pCol);
+      return i;
+    }
+  }
 
   mColours.push_back(pCol);
+  mColourCombinationCounts.emplace_back(1);
   return mColours.size() - 1;
 }
 
@@ -47,7 +58,7 @@ void Palette::writeToFile(const std::string& pPath) {
   // Write
   uint numColours = mColours.size();
   fout << "JASC-PAL\n0100\n" << numColours << "\n";
-  for (glm::vec3& c: mColours)
+  for (auto& c: mColours)
     fout << static_cast<uint>(c.x * 255) << " " << static_cast<uint>(c.y * 255) << " " << static_cast<uint>(c.z * 255) << "\n";
   // Close
   fout.close();
@@ -68,6 +79,7 @@ void Palette::readFromFile(const std::string& pPath) {
   std::getline(fin, line);
   numColours = std::stoi(line);
   mColours.resize(numColours);
+  mColourCombinationCounts.resize(numColours);
   uint count = 0;
   for (; std::getline(fin, line) && (count < numColours); ++count) {
     std::stringstream s;
@@ -78,8 +90,17 @@ void Palette::readFromFile(const std::string& pPath) {
       std::getline(s, componentStr, ' ');
       c[i] = std::stoi(componentStr) / 255.f;
     }
+    mColourCombinationCounts.at(count) = 1;
   }
   if (count != numColours) throw std::overflow_error("Palette file invalid number of colours");
   // Close
   fin.close();
 }
+
+void Palette::addColourToList(uint8_t pIndex, const glm::vec3& pCol) {
+  glm::vec3& c = mColours.at(pIndex);
+  c *= mColourCombinationCounts.at(pIndex);
+  c += pCol;
+  c /= ++mColourCombinationCounts.at(pIndex);
+}
+
