@@ -2,6 +2,8 @@
 
 #include <stb/stb_image.h>
 
+#include <assimp/scene.h>
+
 #include <glm/glm.hpp>
 
 #include <string>
@@ -11,15 +13,16 @@
 namespace VMesh {
   class Texture {
   public:
-    Texture(const std::string& pPath);
+    Texture(const std::string& pPath, const std::array<aiTextureMapMode, 3>& pMapModes);
     Texture(const glm::vec4& pColour);
 
-    glm::vec4 sample(const glm::vec2& pTexCoord);
+    glm::vec4 sample(glm::vec2 pTexCoord);
 
     const std::string& getPath();
 
     void release();
   private:
+    std::array<aiTextureMapMode, 3> mMapModes;
     bool mIsColour;
     glm::vec4 mColour;
     std::string mPath;
