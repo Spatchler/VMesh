@@ -755,11 +755,11 @@ glm::vec2 VoxelGrid::computeTexCoord(const glm::vec3& pPoint, const std::array<V
 }
 
 uint8_t VoxelGrid::sample(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts, bool pCreatePalette, float pAddColourDistance, Texture* pTex) {
-  uint8_t col = 1;
+  uint8_t col { 1 };
   if (pTex) {
     // return mPalette.addColour(computeBarycentric(pPoint, pVerts), pAddColourDistance) + 1;
     glm::vec2 texCoord { computeTexCoord(pPoint, pVerts) };
-    glm::vec4 sample = pTex->sample(texCoord);
+    glm::vec4 sample { pTex->sample(texCoord) };
     if (sample.w == 0.f) return 0;
     // glm::vec2 texCoord = glm::vec2(pPoint.x, pPoint.z) / glm::vec2(mResolution);
     if (pCreatePalette) col = mPalette.addColour(glm::vec3(sample), pAddColourDistance) + 1;
@@ -792,8 +792,8 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
       break;
     }
     
-    float t1 = (plane1 - pStart.x) * pDirInv.x;
-    float t2 = (plane2 - pStart.y) * pDirInv.y;
+    float t1 { (plane1 - pStart.x) * pDirInv.x };
+    float t2 { (plane2 - pStart.y) * pDirInv.y };
 
     if (t1 < t2) voxelPos.x += glm::sign(pDirInv.x);
     else         voxelPos.y += glm::sign(pDirInv.y);
