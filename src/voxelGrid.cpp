@@ -667,31 +667,32 @@ void VoxelGrid::readMetaData(std::ifstream& pFin) {
 }
 
 glm::vec3 VoxelGrid::computeBarycentric(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts) {
-  glm::vec3 barycentric;
+  // glm::vec3 barycentric;
   // Tri 1
-  glm::vec3 e1 { pPoint - pVerts[1].pos };
-  glm::vec3 e2 { pPoint - pVerts[2].pos };
-  glm::vec3 normal { glm::cross(e1, e2) };
-  barycentric.x = 0.5f * glm::length(normal);
-  // Tri 2
-  e1 = pPoint - pVerts[0].pos;
-  e2 = pPoint - pVerts[2].pos;
-  normal = glm::cross(e1, e2);
-  barycentric.y = 0.5f * glm::length(normal);
-  // Tri 3
-  e1 = pPoint - pVerts[0].pos;
-  e2 = pPoint - pVerts[1].pos;
-  normal = glm::cross(e1, e2);
-  barycentric.z = 0.5f * glm::length(normal);
-  // Divide by large tri area
-  e1 = pVerts[2].pos - pVerts[0].pos;
-  e2 = pVerts[1].pos - pVerts[0].pos;
-  normal = glm::cross(e1, e2);
-  barycentric /= 0.5f * glm::length(normal);
-  return barycentric;
+  // glm::vec3 e1 { pPoint - pVerts[1].pos };
+  // glm::vec3 e2 { pPoint - pVerts[2].pos };
+  // glm::vec3 normal { glm::cross(e1, e2) };
+  // barycentric.x = 0.5f * glm::length(normal);
+  // // Tri 2
+  // e1 = pPoint - pVerts[0].pos;
+  // e2 = pPoint - pVerts[2].pos;
+  // normal = glm::cross(e1, e2);
+  // barycentric.y = 0.5f * glm::length(normal);
+  // // Tri 3
+  // e1 = pPoint - pVerts[0].pos;
+  // e2 = pPoint - pVerts[1].pos;
+  // normal = glm::cross(e1, e2);
+  // barycentric.z = 0.5f * glm::length(normal);
+  // // Divide by large tri area
+  // e1 = pVerts[2].pos - pVerts[0].pos;
+  // e2 = pVerts[1].pos - pVerts[0].pos;
+  // normal = glm::cross(e1, e2);
+  // barycentric /= 0.5f * glm::length(normal);
 
-  // Calculate the determinant (denominator) of the transformation matrix
-  // double det = (pVerts[1].pos.y - pVerts[2].pos.y) * (pVerts[0].pos.x - pVerts[2].pos.x) + (pVerts[2].pos.x - pVerts[1].pos.x) * (pVerts[0].pos.y - pVerts[2].pos.y);
+  // Method 2
+
+  // // Calculate the determinant (denominator) of the transformation matrix
+  // double det { (pVerts[1].pos.y - pVerts[2].pos.y) * (pVerts[0].pos.x - pVerts[2].pos.x) + (pVerts[2].pos.x - pVerts[1].pos.x) * (pVerts[0].pos.y - pVerts[2].pos.y) };
   //
   // // Handle degenerate triangle case (vertices are collinear or identical)
   // if (det == 0.0) return glm::vec3(0);
@@ -702,19 +703,41 @@ glm::vec3 VoxelGrid::computeBarycentric(const glm::vec3& pPoint, const std::arra
   // barycentric.y = ((pVerts[2].pos.y - pVerts[0].pos.y) * (pPoint.x - pVerts[2].pos.x) + (pVerts[0].pos.x - pVerts[2].pos.x) * (pPoint.y - pVerts[2].pos.y)) / det;
   // barycentric.z = 1.0 - barycentric.x - barycentric.y;
 
+  // Method 3
+  const glm::vec3& a { pVerts[0].pos }, b { pVerts[1].pos }, c { pVerts[2].pos };
+  glm::vec3 v0 { c - a }, v1 { b - a }, v2 { pPoint - a };
+
+  float dot00 { glm::dot(v0, v0) },
+        dot01 { glm::dot(v0, v1) },
+        dot02 { glm::dot(v0, v2) },
+        dot11 { glm::dot(v1, v1) },
+        dot12 { glm::dot(v1, v2) };
+
+  float denom { dot00 * dot11 - dot01 * dot01 };
+
+  // Handle degenerate triangles (area is zero)
+  if (glm::abs(denom) < 1e-6f) return glm::vec3(1.f, 0.f, 0.f);
+
+  float denomInv { 1.f / denom };
+
+  glm::vec3 barycentric;
+  barycentric.z = (dot11 * dot02 - dot01 * dot12) * denomInv;
+  barycentric.y = (dot00 * dot12 - dot01 * dot02) * denomInv;
+  barycentric.x = 1.0f - barycentric.y - barycentric.z;
+
   // Clamp if outside
   if (barycentric.x < 0) {
-    float t = glm::dot(pPoint-pVerts[1].pos, pVerts[2].pos-pVerts[1].pos) / glm::dot(pVerts[2].pos-pVerts[1].pos, pVerts[2].pos-pVerts[1].pos);
+    float t { glm::dot(pPoint-pVerts[1].pos, pVerts[2].pos-pVerts[1].pos) / glm::dot(pVerts[2].pos-pVerts[1].pos, pVerts[2].pos-pVerts[1].pos) };
     t = std::clamp(t, 0.f, 1.f);
     barycentric = { 0.f, 1.f-t, t };
   }
   else if (barycentric.y < 0) {
-    float t = glm::dot(pPoint-pVerts[2].pos, pVerts[0].pos-pVerts[2].pos) / glm::dot(pVerts[0].pos-pVerts[2].pos, pVerts[0].pos-pVerts[2].pos);
+    float t { glm::dot(pPoint-pVerts[2].pos, pVerts[0].pos-pVerts[2].pos) / glm::dot(pVerts[0].pos-pVerts[2].pos, pVerts[0].pos-pVerts[2].pos) };
     t = std::clamp(t, 0.f, 1.f);
     barycentric = { t, 0.f, 1.f-t };
   }
   else if (barycentric.z < 0) {
-    float t = glm::dot(pPoint-pVerts[0].pos, pVerts[1].pos-pVerts[0].pos) / glm::dot(pVerts[1].pos-pVerts[0].pos, pVerts[1].pos-pVerts[0].pos);
+    float t { glm::dot(pPoint-pVerts[0].pos, pVerts[1].pos-pVerts[0].pos) / glm::dot(pVerts[1].pos-pVerts[0].pos, pVerts[1].pos-pVerts[0].pos) };
     t = std::clamp(t, 0.f, 1.f);
     barycentric = { 1.f-t, t, 0.f };
   }
@@ -732,11 +755,11 @@ glm::vec2 VoxelGrid::computeTexCoord(const glm::vec3& pPoint, const std::array<V
 }
 
 uint8_t VoxelGrid::sample(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts, bool pCreatePalette, float pAddColourDistance, Texture* pTex) {
-  uint8_t col = 1;
+  uint8_t col { 1 };
   if (pTex) {
     // return mPalette.addColour(computeBarycentric(pPoint, pVerts), pAddColourDistance) + 1;
     glm::vec2 texCoord { computeTexCoord(pPoint, pVerts) };
-    glm::vec4 sample = pTex->sample(texCoord);
+    glm::vec4 sample { pTex->sample(texCoord) };
     if (sample.w == 0.f) return 0;
     // glm::vec2 texCoord = glm::vec2(pPoint.x, pPoint.z) / glm::vec2(mResolution);
     if (pCreatePalette) col = mPalette.addColour(glm::vec3(sample), pAddColourDistance) + 1;
@@ -769,8 +792,8 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
       break;
     }
     
-    float t1 = (plane1 - pStart.x) * pDirInv.x;
-    float t2 = (plane2 - pStart.y) * pDirInv.y;
+    float t1 { (plane1 - pStart.x) * pDirInv.x };
+    float t2 { (plane2 - pStart.y) * pDirInv.y };
 
     if (t1 < t2) voxelPos.x += glm::sign(pDirInv.x);
     else         voxelPos.y += glm::sign(pDirInv.y);
