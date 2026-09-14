@@ -459,6 +459,7 @@ void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
 }
 
 void VoxelGrid::insert(uint64_t pIndex, uint8_t pCol) {
+  if (pIndex >= mVoxelData.size()) return;
   if (mVoxelData.at(pIndex) == 0) ++mVoxelCount;
   mVoxelData.at(pIndex) = pCol;
   if (pCol == 0) --mVoxelCount;
