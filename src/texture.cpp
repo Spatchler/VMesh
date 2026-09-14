@@ -5,6 +5,7 @@ using namespace VMesh;
 Texture::Texture(const std::string& pPath, const std::array<aiTextureMapMode, 3>& pMapModes)
 :mPath(pPath), mIsColour(false), mMapModes(pMapModes) {
   std::replace(mPath.begin(), mPath.end(), '\\', '/');
+  stbi_set_flip_vertically_on_load(true);
   mData = stbi_load(mPath.c_str(), &mSize.x, &mSize.y, &mNrComponents, 4); // Force 4 channels
   mArea = mSize.x * mSize.y;
   if (!mData) {
