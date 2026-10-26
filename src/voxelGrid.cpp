@@ -582,11 +582,32 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
 }
 
 bool VoxelGrid::isRegionAllSame(const glm::uvec3& pOrigin, uint pSize) {
+  if (pSize == 1) return true;
   uint8_t first = queryVoxelData(pOrigin);
   glm::uvec3 s = glm::min(glm::uvec3(mResolution) - pOrigin, pSize);
-  for (glm::uvec3 p(0); p.z < s.z; ++p.z) for (p.y = 0; p.y < s.y; ++p.y) for (p.x = 0; p.x < s.x; ++p.x)
-    if (queryVoxelData(pOrigin + p) != first) return false;
+  // for (glm::uvec3 p(0); p.z < s.z; ++p.z) for (p.y = 0; p.y < s.y; ++p.y) for (p.x = 0; p.x < s.x; ++p.x)
+    // if (queryVoxelData(pOrigin + p) != first) return false;
+  for (glm::uvec3 p(0); p.z < s.z; p.z += 2) for (p.y = 0; p.y < s.y; p.y += 2) for (p.x = 0; p.x < s.x; p.x += 2)
+    if (!is2x2AllSame(pOrigin + p, first)) return false;
   return true;
+}
+
+bool VoxelGrid::is2x2AllSame(const glm::uvec3& pOrigin) {
+  uint64_t i = zorder(pOrigin);
+  uint64_t d = queryVoxelData(i);
+  d &= d << 8;
+  d &= d << 16;
+  d &= d << 32;
+  return *reinterpret_cast<uint64_t*>(&mVoxelData.at(i)) == d;
+}
+
+bool VoxelGrid::is2x2AllSame(const glm::uvec3& pOrigin, uint8_t pData) {
+  uint64_t i = zorder(pOrigin);
+  uint64_t d = pData;
+  d &= d << 8;
+  d &= d << 16;
+  d &= d << 32;
+  return *reinterpret_cast<uint64_t*>(&mVoxelData.at(i)) == d;
 }
 
 uint64_t VoxelGrid::getVoxelCount() {
@@ -678,16 +699,14 @@ glm::vec3 VoxelGrid::computeBarycentric(const glm::vec3& pPoint, const std::arra
   // e2 = pPoint - pVerts[2].pos;
   // normal = glm::cross(e1, e2);
   // barycentric.y = 0.5f * glm::length(normal);
-  // // Tri 3
-  // e1 = pPoint - pVerts[0].pos;
-  // e2 = pPoint - pVerts[1].pos;
-  // normal = glm::cross(e1, e2);
-  // barycentric.z = 0.5f * glm::length(normal);
   // // Divide by large tri area
   // e1 = pVerts[2].pos - pVerts[0].pos;
   // e2 = pVerts[1].pos - pVerts[0].pos;
   // normal = glm::cross(e1, e2);
-  // barycentric /= 0.5f * glm::length(normal);
+  // float area = 0.5f * glm::length(normal);
+  // barycentric.x /= area;
+  // barycentric.y /= area;
+  // barycentric.z = 1.f - barycentric.x - barycentric.y;
 
   // Method 2
 
