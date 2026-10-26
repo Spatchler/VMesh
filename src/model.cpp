@@ -90,8 +90,9 @@ void Model::loadMaterials(const aiScene* pScene) {
     // Texture
     for (uint j = 0; j < mat->GetTextureCount(aiTextureType_DIFFUSE); ++j) {
       aiString path;
-      mat->GetTexture(aiTextureType_DIFFUSE, j, &path);
-      mDiffuseMaps.emplace_back(mDirectory + '/' + std::string(path.C_Str()));
+      std::array<aiTextureMapMode, 3> mapModes;
+      mat->GetTexture(aiTextureType_DIFFUSE, j, &path, nullptr, nullptr, nullptr, nullptr, mapModes.data());
+      mDiffuseMaps.emplace_back(mDirectory + '/' + std::string(path.C_Str()), mapModes);
     }
   }
 }
