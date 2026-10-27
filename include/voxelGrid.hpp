@@ -24,6 +24,21 @@ namespace VMesh {
     uint8_t i0, i1; // Barycentric matrix 2D projection axis indices
   };
 
+  struct VoxelGridMetadata {
+    virtual void loadFromFile(std::ifstream& fin);
+    virtual void print() noexcept;
+    std::array<uint8_t, 3> fileVersion;
+    uint32_t resolution;
+    uint8_t paletteSize;
+    uint64_t voxelCount;
+  };
+
+  struct CompressedVoxelGridMetadata: public VoxelGridMetadata {
+    void loadFromFile(std::ifstream& fin) override;
+    void print() noexcept override;
+    uint32_t countsLen;
+  };
+
   class VoxelGrid {
   public:
     VoxelGrid(uint pResolution, glm::vec3 pOrigin = glm::vec3(0,0,0));

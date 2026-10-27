@@ -5,6 +5,50 @@
 
 using namespace VMesh;
 
+void VoxelGridMetadata::loadFromFile(std::ifstream& fin) {
+  std::string str;
+  std::streampos fPos = fin.tellg();
+  fin.seekg(0);
+  std::getline(fin, str);
+  if (str != "VMESHU") throw std::invalid_argument("Incorrect file format");
+  fin.read(reinterpret_cast<char*>(fileVersion.data()), 3);
+  fin.read(reinterpret_cast<char*>(&resolution), 4);
+  fin.read(reinterpret_cast<char*>(&paletteSize), 1);
+  fin.read(reinterpret_cast<char*>(&voxelCount), 8);
+  fin.seekg(fPos);
+}
+
+void VoxelGridMetadata::print() noexcept {
+  std::println("File format: VMESHU uncompressed voxel data (vmu)");
+  std::println("File version: {}.{}.{}", fileVersion[0], fileVersion[1], fileVersion[2]);
+  std::println("Resolution: {}", resolution);
+  std::println("Palette size: {}", paletteSize);
+  std::println("Voxel count: {}", voxelCount);
+}
+
+void CompressedVoxelGridMetadata::loadFromFile(std::ifstream& fin) {
+  std::string str;
+  std::streampos fPos = fin.tellg();
+  fin.seekg(0);
+  std::getline(fin, str);
+  if (str != "VMESHC") throw std::invalid_argument("Incorrect file format");
+  fin.read(reinterpret_cast<char*>(fileVersion.data()), 3);
+  fin.read(reinterpret_cast<char*>(&resolution), 4);
+  fin.read(reinterpret_cast<char*>(&paletteSize), 1);
+  fin.read(reinterpret_cast<char*>(&voxelCount), 8);
+  fin.read(reinterpret_cast<char*>(&countsLen), 4);
+  fin.seekg(fPos);
+}
+
+void CompressedVoxelGridMetadata::print() noexcept {
+  std::println("File format: VMESHC compressed voxel data (vmc)");
+  std::println("File version: {}.{}.{}", fileVersion[0], fileVersion[1], fileVersion[2]);
+  std::println("Resolution: {}", resolution);
+  std::println("Palette size: {}", paletteSize);
+  std::println("Voxel count: {}", voxelCount);
+  std::println("Number of runs for run length encoding: {}", countsLen);
+}
+
 VoxelGrid::VoxelGrid(uint pResolution, glm::vec3 pOrigin)
 :mResolution(pResolution), mOrigin(pOrigin) {
   mLogStream = &mDefaultLogStream;
