@@ -69,9 +69,8 @@ namespace VMesh {
 
     void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
 
-    bool isRegionAllSame(const glm::uvec3& pOrigin, uint pSize);
-    bool is2x2AllSame(const glm::uvec3& pOrigin);
-    bool is2x2AllSame(const glm::uvec3& pOrigin, uint8_t pData);
+    bool isOctreeOctantAllSame(const uint64_t& pIndex, uint pSize);
+    bool isOctree2x2AllSame(const uint64_t& pIndex, uint8_t pData) noexcept;
 
     uint64_t getVoxelCount();
     uint64_t getVolume();
@@ -83,6 +82,8 @@ namespace VMesh {
     uint8_t queryVoxelData(const glm::uvec3& pPos);
     const std::vector<uint8_t>& getVoxelData();
     std::pair<std::vector<uint8_t>, std::vector<uint64_t>> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
+
+    static uint64_t zorder(const glm::uvec3& pPos);
 
     Palette mPalette;
 
@@ -112,8 +113,6 @@ namespace VMesh {
     static glm::vec3 toVec3(float a, float b, float c, uint8_t pDominantAxisIndex);
 
     void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, bool pCreatePalette, float pAddColourDistance, Texture* pTex, const Triangle& pTri);
-
-    uint64_t zorder(const glm::uvec3& pPos);
 
     std::ostream* mLogStream;
     std::mutex* mLogMutex;

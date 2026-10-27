@@ -654,33 +654,21 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
   }
 }
 
-bool VoxelGrid::isRegionAllSame(const glm::uvec3& pOrigin, uint pSize) {
-  if (pSize == 1) return true;
-  uint8_t first = queryVoxelData(pOrigin);
-  glm::uvec3 s = glm::min(glm::uvec3(mResolution) - pOrigin, pSize);
-  // for (glm::uvec3 p(0); p.z < s.z; ++p.z) for (p.y = 0; p.y < s.y; ++p.y) for (p.x = 0; p.x < s.x; ++p.x)
-    // if (queryVoxelData(pOrigin + p) != first) return false;
-  for (glm::uvec3 p(0); p.z < s.z; p.z += 2) for (p.y = 0; p.y < s.y; p.y += 2) for (p.x = 0; p.x < s.x; p.x += 2)
-    if (!is2x2AllSame(pOrigin + p, first)) return false;
+bool VoxelGrid::isOctreeOctantAllSame(const uint64_t& pIndex, uint pSize) {
+  if (pSize <= 1) return true;
+  uint8_t first = queryVoxelData(pIndex);
+  uint64_t s = pIndex + pSize * pSize * pSize;
+  for (uint64_t i = pIndex; i < s; i += 8)
+    if (!isOctree2x2AllSame(i, first)) return false;
   return true;
 }
 
-bool VoxelGrid::is2x2AllSame(const glm::uvec3& pOrigin) {
-  uint64_t i = zorder(pOrigin);
-  uint64_t d = queryVoxelData(i);
-  d &= d << 8;
-  d &= d << 16;
-  d &= d << 32;
-  return *reinterpret_cast<uint64_t*>(&mVoxelData.at(i)) == d;
-}
-
-bool VoxelGrid::is2x2AllSame(const glm::uvec3& pOrigin, uint8_t pData) {
-  uint64_t i = zorder(pOrigin);
+bool VoxelGrid::isOctree2x2AllSame(const uint64_t& pIndex, uint8_t pData) noexcept {
   uint64_t d = pData;
   d &= d << 8;
   d &= d << 16;
   d &= d << 32;
-  return *reinterpret_cast<uint64_t*>(&mVoxelData.at(i)) == d;
+  return *reinterpret_cast<uint64_t*>(&mVoxelData.at(pIndex)) == d;
 }
 
 uint64_t VoxelGrid::getVoxelCount() {
@@ -864,7 +852,6 @@ glm::vec2 VoxelGrid::computeTexCoord(const glm::vec3& pPoint, const Triangle& pT
 uint8_t VoxelGrid::sample(const glm::vec3& pPoint, const Triangle& pTri, bool pCreatePalette, float pAddColourDistance, Texture* pTex) {
   uint8_t col { 1 };
   if (pTex) {
-    // return mPalette.addColour(computeBarycentric(pPoint, pVerts), pAddColourDistance) + 1;
     glm::vec2 texCoord { computeTexCoord(pPoint, pTri) };
     glm::vec4 sample { pTex->sample(texCoord) };
     if (sample.w == 0.f) return 0;
@@ -938,27 +925,12 @@ void VoxelGrid::drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, 
   // std::println("Finished");
 }
 
+// TODO: This function needs to somehow take the non dominant axis indices to avoid recalculation
 glm::vec3 VoxelGrid::toVec3(float a, float b, float c, uint8_t pDominantAxisIndex) {
   glm::vec3 v;
   v[pDominantAxisIndex] = a;
   v[(pDominantAxisIndex + 1) % 3] = b;
   v[(pDominantAxisIndex + 2) % 3] = c;
-  // glm::vec3 v;
-  // if (pDominantAxisIndex == 0) {
-  //   v.x = a;
-  //   v.y = b;
-  //   v.z = c;
-  // }
-  // else if (pDominantAxisIndex == 1) {
-  //   v.x = c;
-  //   v.y = a;
-  //   v.z = b;
-  // }
-  // else if (pDominantAxisIndex == 2) {
-  //   v.x = b;
-  //   v.y = c;
-  //   v.z = a;
-  // }
   return v;
 }
 
