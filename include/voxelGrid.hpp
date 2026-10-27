@@ -19,9 +19,9 @@
 namespace VMesh {
   struct Triangle {
     std::array<Vertex, 3> verts;
-    glm::mat2 barycentricMat;
-    uint8_t originIndex; // Origin used in calculating barycentric matrix
-    uint8_t i0, i1; // Barycentric matrix 2D projection axis indices
+    glm::vec3 normal;
+    glm::vec3 absNormal;
+    glm::mat3 barycentricMat;
   };
 
   struct VoxelGridMetadata {
@@ -61,6 +61,8 @@ namespace VMesh {
     void loadFromVoxFile(const std::filesystem::path& pPath);
 
     void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
+
+    void setUseMatrixBarycentricCompute(bool pState);
 
     void insert(uint64_t pIndex, uint8_t pCol);
     void insert(const glm::uvec3& pPos, uint8_t pCol);
@@ -115,6 +117,8 @@ namespace VMesh {
 
     std::ostream* mLogStream;
     std::mutex* mLogMutex;
+
+    bool mIsUseMatrixBarycentricComp { false };
 
     std::vector<uint8_t> mVoxelData;
     

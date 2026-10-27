@@ -500,6 +500,10 @@ void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
   mLogStream = pStream;
 }
 
+void VoxelGrid::setUseMatrixBarycentricCompute(bool pState) {
+  mIsUseMatrixBarycentricComp = pState;
+}
+
 void VoxelGrid::insert(uint64_t pIndex, uint8_t pCol) {
   if (pIndex >= mVoxelData.size()) return;
   if (mVoxelData.at(pIndex) == 0) ++mVoxelCount;
@@ -526,14 +530,20 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
   }
 
   // Find dominant axis
-  glm::vec3 minPoint = glm::min(pVerts[0].pos, glm::min(pVerts[1].pos, pVerts[2].pos));
-  glm::vec3 maxPoint = glm::max(pVerts[0].pos, glm::max(pVerts[1].pos, pVerts[2].pos));
-  glm::vec3 boxSize = maxPoint - minPoint;
+  // glm::vec3 minPoint = glm::min(pVerts[0].pos, glm::min(pVerts[1].pos, pVerts[2].pos));
+  // glm::vec3 maxPoint = glm::max(pVerts[0].pos, glm::max(pVerts[1].pos, pVerts[2].pos));
+  // glm::vec3 boxSize = maxPoint - minPoint;
+
+  glm::vec3 normal = glm::cross(pVerts[1].pos - pVerts[0].pos, pVerts[2].pos - pVerts[0].pos);
+  glm::vec3 absNormal = glm::abs(normal);
 
   uint8_t dominantAxisIndex = 0;
-  if ((boxSize.x >= boxSize.y) && (boxSize.x >= boxSize.z))      dominantAxisIndex = 0;
-  else if ((boxSize.y >= boxSize.x) && (boxSize.y >= boxSize.z)) dominantAxisIndex = 1;
-  else if ((boxSize.z >= boxSize.x) && (boxSize.z >= boxSize.y)) dominantAxisIndex = 2;
+  if ((absNormal.x <= absNormal.y) && (absNormal.x <= absNormal.z))      dominantAxisIndex = 0;
+  else if ((absNormal.y <= absNormal.x) && (absNormal.y <= absNormal.z)) dominantAxisIndex = 1;
+  else if ((absNormal.z <= absNormal.x) && (absNormal.z <= absNormal.y)) dominantAxisIndex = 2;
+  // if ((boxSize.x >= boxSize.y) && (boxSize.x >= boxSize.z))      dominantAxisIndex = 0;
+  // else if ((boxSize.y >= boxSize.x) && (boxSize.y >= boxSize.z)) dominantAxisIndex = 1;
+  // else if ((boxSize.z >= boxSize.x) && (boxSize.z >= boxSize.y)) dominantAxisIndex = 2;
   std::array<uint8_t, 2> nonDominantAxisIndices;
   nonDominantAxisIndices[0] = (dominantAxisIndex + 1) % 3;
   nonDominantAxisIndices[1] = (dominantAxisIndex + 2) % 3;
@@ -553,12 +563,25 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
   glm::vec3 mhDir = pVerts[2].pos - pVerts[1].pos;
   glm::vec3 mhDirInv = 1.f/mhDir;
 
+  Triangle tri { pVerts, normal, absNormal, glm::mat3(1.f) };
+
   // Calculate barycentric matrix
-  // uint8_t secondDominantAxis { (boxSize[nonDominantAxisIndices[0]] >= boxSize[nonDominantAxisIndices[1]]) ? nonDominantAxisIndices[0] : nonDominantAxisIndices[1] };
-  // glm::mat2 barycentricMat { {lhDir[dominantAxisIndex], lhDir[secondDominantAxis]}, {lmDir[dominantAxisIndex], lmDir[secondDominantAxis]} };
-  // barycentricMat = glm::inverse(barycentricMat);
-  // Triangle tri { pVerts, barycentricMat, 0, dominantAxisIndex, secondDominantAxis };
-  Triangle tri { pVerts, glm::mat2(1.f), 0, dominantAxisIndex, 0 };
+  if (mIsUseMatrixBarycentricComp) {
+    const glm::vec3& A { pVerts[0].pos }, B { pVerts[1].pos }, C { pVerts[2].pos };
+    glm::vec2 a2d, b2d, c2d, p2d;
+    if (absNormal.x >= absNormal.y && absNormal.x >= absNormal.z) {
+      a2d = glm::vec2(A.y, A.z); b2d = glm::vec2(B.y, B.z); c2d = glm::vec2(C.y, C.z);
+    } else if (absNormal.y >= absNormal.x && absNormal.y >= absNormal.z) {
+      a2d = glm::vec2(A.x, A.z); b2d = glm::vec2(B.x, B.z); c2d = glm::vec2(C.x, C.z);
+    } else {
+      a2d = glm::vec2(A.x, A.y); b2d = glm::vec2(B.x, B.y); c2d = glm::vec2(C.x, C.y);
+    }
+    tri.barycentricMat = glm::inverse(glm::mat3(
+      glm::vec3(a2d.x, a2d.y, 1.0f),
+      glm::vec3(b2d.x, b2d.y, 1.0f),
+      glm::vec3(c2d.x, c2d.y, 1.0f)
+    ));
+  }
 
   // Iterate over along the dominant axis traversing between the two lines
   for (float dominantAxisValue = std::max(0.f, pVerts[0].pos[dominantAxisIndex]); dominantAxisValue <= std::min((float)mResolution, pVerts[2].pos[dominantAxisIndex]); ++dominantAxisValue) {
@@ -738,10 +761,19 @@ void VoxelGrid::readMetaData(std::ifstream& pFin) {
 }
 
 glm::vec3 VoxelGrid::computeBarycentric(const glm::vec3& pPoint, const Triangle& pTri) {
-  // glm::vec3 d = pPoint - pTri.verts[pTri.originIndex].pos;
-  // glm::vec2 vw { d[pTri.i0], d[pTri.i1] };
-  // vw = pTri.barycentricMat * vw;
-  // return { 1.f - vw.x - vw.y, vw.y, vw.x };
+  if (mIsUseMatrixBarycentricComp) {
+    glm::vec2 p2d;
+    if (pTri.absNormal.x >= pTri.absNormal.y && pTri.absNormal.x >= pTri.absNormal.z) {
+      p2d = glm::vec2(pPoint.y, pPoint.z);
+    } else if (pTri.absNormal.y >= pTri.absNormal.x && pTri.absNormal.y >= pTri.absNormal.z) {
+      p2d = glm::vec2(pPoint.x, pPoint.z);
+    } else {
+      p2d = glm::vec2(pPoint.x, pPoint.y);
+    }
+    glm::vec3 targetP = glm::vec3(p2d.x, p2d.y, 1.0f);
+    glm::vec3 barycentric = pTri.barycentricMat * targetP;
+    return barycentric;
+  }
 
   // glm::vec3 barycentric;
   // // Tri 1
