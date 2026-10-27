@@ -17,6 +17,13 @@
 #include <bitset>
 
 namespace VMesh {
+  struct Triangle {
+    std::array<Vertex, 3> verts;
+    glm::mat2 barycentricMat;
+    uint8_t originIndex; // Origin used in calculating barycentric matrix
+    uint8_t i0, i1; // Barycentric matrix 2D projection axis indices
+  };
+
   class VoxelGrid {
   public:
     VoxelGrid(uint pResolution, glm::vec3 pOrigin = glm::vec3(0,0,0));
@@ -79,13 +86,13 @@ namespace VMesh {
     void readMetaData(std::ifstream& pFin);
 
     // Point and triangle vertices all in world space
-    glm::vec3 computeBarycentric(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts);
-    glm::vec2 computeTexCoord(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts);
-    uint8_t sample(const glm::vec3& pPoint, const std::array<Vertex, 3>& pVerts, bool pCreatePalette, float pAddColourDistance, Texture* pTex);
+    glm::vec3 computeBarycentric(const glm::vec3& pPoint, const Triangle& pTri);
+    glm::vec2 computeTexCoord(const glm::vec3& pPoint, const Triangle& pTri);
+    uint8_t sample(const glm::vec3& pPoint, const Triangle& pTri, bool pCreatePalette, float pAddColourDistance, Texture* pTex);
 
     static glm::vec3 toVec3(float a, float b, float c, uint8_t pDominantAxisIndex);
 
-    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, bool pCreatePalette, float pAddColourDistance, Texture* pTex, const std::array<Vertex, 3>& pVerts);
+    void drawLine2(uint8_t pDominantAxisIndex, float pDominantAxisValue, const glm::vec2& pStart, const glm::vec2& pEnd, const glm::vec2& pDir, const glm::vec2& pDirInv, bool pCreatePalette, float pAddColourDistance, Texture* pTex, const Triangle& pTri);
 
     uint64_t zorder(const glm::uvec3& pPos);
 
