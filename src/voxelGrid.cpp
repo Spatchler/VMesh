@@ -230,9 +230,9 @@ void VoxelGrid::writeToFile(std::string pPath) {
   if (!fout.is_open()) throw std::runtime_error("Could not open output file");
 
   // Header
-  fout << "VMESHU";
-  const uint32_t fileVersion = 100;
-  fout.write(reinterpret_cast<const char*>(&fileVersion), sizeof(fileVersion));
+  fout << "VMESHU\n";
+  std::array<uint8_t, 3> fileVersion {1,0,0};
+  fout.write(reinterpret_cast<char*>(fileVersion.data()), 3);
 
   writeMetaData(fout);
 
@@ -255,9 +255,9 @@ void VoxelGrid::writeToFileCompressed(std::string pPath, uint64_t* pVoxelsComple
   if (!fout.is_open()) throw std::runtime_error("Could not open output file");
 
   // Header
-  fout << "VMESHC";
-  const uint32_t fileVersion = 100;
-  fout.write(reinterpret_cast<const char*>(&fileVersion), sizeof(fileVersion));
+  fout << "VMESHC\n";
+  std::array<uint8_t, 3> fileVersion {1,0,0};
+  fout.write(reinterpret_cast<char*>(fileVersion.data()), 3);
 
   writeMetaData(fout);
 
@@ -278,12 +278,11 @@ void VoxelGrid::loadFromFile(const std::string& pPath) {
   if (!fin.is_open()) throw std::runtime_error("Could not open input file");
 
   std::string str;
-  str.resize(6);
-  fin.read(str.data(), 6);
+  std::getline(fin, str);
   if (str != "VMESHU") throw std::invalid_argument("Invalid voxel grid file");
-  uint32_t ver;
-  fin.read(reinterpret_cast<char*>(&ver), sizeof(ver));
-  if (ver != 100) throw std::invalid_argument("Invalid voxel grid file version");
+  std::array<uint8_t, 3> fileVersion;
+  fin.read(reinterpret_cast<char*>(fileVersion.data()), 3);
+  if (fileVersion[0] == 1 && fileVersion[1] == 0 && fileVersion[2] == 0) throw std::invalid_argument("Invalid voxel grid file version");
 
   readMetaData(fin);
 
@@ -302,12 +301,11 @@ void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
   if (!fin.is_open()) throw std::runtime_error("Could not open input file");
 
   std::string str;
-  str.resize(6);
-  fin.read(str.data(), 6);
+  std::getline(fin, str);
   if (str != "VMESHC") throw std::invalid_argument("Invalid voxel grid file");
-  uint32_t ver;
-  fin.read(reinterpret_cast<char*>(&ver), sizeof(ver));
-  if (ver != 100) throw std::invalid_argument("Invalid voxel grid file version");
+  std::array<uint8_t, 3> fileVersion;
+  fin.read(reinterpret_cast<char*>(fileVersion.data()), 3);
+  if (fileVersion[0] == 1 && fileVersion[1] == 0 && fileVersion[2] == 0) throw std::invalid_argument("Invalid voxel grid file version");
 
   readMetaData(fin);
 
