@@ -53,6 +53,8 @@ namespace VMesh {
     void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
 
     bool isRegionAllSame(const glm::uvec3& pOrigin, uint pSize);
+    bool is2x2AllSame(const glm::uvec3& pOrigin);
+    bool is2x2AllSame(const glm::uvec3& pOrigin, uint8_t pData);
 
     uint64_t getVoxelCount();
     uint64_t getVolume();

@@ -230,9 +230,9 @@ void VoxelGrid::writeToFile(std::string pPath) {
   if (!fout.is_open()) throw std::runtime_error("Could not open output file");
 
   // Header
-  fout << "VMESHU";
-  const uint32_t fileVersion = 100;
-  fout.write(reinterpret_cast<const char*>(&fileVersion), sizeof(fileVersion));
+  fout << "VMESHU\n";
+  std::array<uint8_t, 3> fileVersion {1,0,0};
+  fout.write(reinterpret_cast<char*>(fileVersion.data()), 3);
 
   writeMetaData(fout);
 
@@ -255,9 +255,9 @@ void VoxelGrid::writeToFileCompressed(std::string pPath, uint64_t* pVoxelsComple
   if (!fout.is_open()) throw std::runtime_error("Could not open output file");
 
   // Header
-  fout << "VMESHC";
-  const uint32_t fileVersion = 100;
-  fout.write(reinterpret_cast<const char*>(&fileVersion), sizeof(fileVersion));
+  fout << "VMESHC\n";
+  std::array<uint8_t, 3> fileVersion {1,0,0};
+  fout.write(reinterpret_cast<char*>(fileVersion.data()), 3);
 
   writeMetaData(fout);
 
@@ -278,12 +278,11 @@ void VoxelGrid::loadFromFile(const std::string& pPath) {
   if (!fin.is_open()) throw std::runtime_error("Could not open input file");
 
   std::string str;
-  str.resize(6);
-  fin.read(str.data(), 6);
+  std::getline(fin, str);
   if (str != "VMESHU") throw std::invalid_argument("Invalid voxel grid file");
-  uint32_t ver;
-  fin.read(reinterpret_cast<char*>(&ver), sizeof(ver));
-  if (ver != 100) throw std::invalid_argument("Invalid voxel grid file version");
+  std::array<uint8_t, 3> fileVersion;
+  fin.read(reinterpret_cast<char*>(fileVersion.data()), 3);
+  if (fileVersion[0] == 1 && fileVersion[1] == 0 && fileVersion[2] == 0) throw std::invalid_argument("Invalid voxel grid file version");
 
   readMetaData(fin);
 
@@ -302,12 +301,11 @@ void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
   if (!fin.is_open()) throw std::runtime_error("Could not open input file");
 
   std::string str;
-  str.resize(6);
-  fin.read(str.data(), 6);
+  std::getline(fin, str);
   if (str != "VMESHC") throw std::invalid_argument("Invalid voxel grid file");
-  uint32_t ver;
-  fin.read(reinterpret_cast<char*>(&ver), sizeof(ver));
-  if (ver != 100) throw std::invalid_argument("Invalid voxel grid file version");
+  std::array<uint8_t, 3> fileVersion;
+  fin.read(reinterpret_cast<char*>(fileVersion.data()), 3);
+  if (fileVersion[0] == 1 && fileVersion[1] == 0 && fileVersion[2] == 0) throw std::invalid_argument("Invalid voxel grid file version");
 
   readMetaData(fin);
 
@@ -590,11 +588,32 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
 }
 
 bool VoxelGrid::isRegionAllSame(const glm::uvec3& pOrigin, uint pSize) {
+  if (pSize == 1) return true;
   uint8_t first = queryVoxelData(pOrigin);
   glm::uvec3 s = glm::min(glm::uvec3(mResolution) - pOrigin, pSize);
-  for (glm::uvec3 p(0); p.z < s.z; ++p.z) for (p.y = 0; p.y < s.y; ++p.y) for (p.x = 0; p.x < s.x; ++p.x)
-    if (queryVoxelData(pOrigin + p) != first) return false;
+  // for (glm::uvec3 p(0); p.z < s.z; ++p.z) for (p.y = 0; p.y < s.y; ++p.y) for (p.x = 0; p.x < s.x; ++p.x)
+    // if (queryVoxelData(pOrigin + p) != first) return false;
+  for (glm::uvec3 p(0); p.z < s.z; p.z += 2) for (p.y = 0; p.y < s.y; p.y += 2) for (p.x = 0; p.x < s.x; p.x += 2)
+    if (!is2x2AllSame(pOrigin + p, first)) return false;
   return true;
+}
+
+bool VoxelGrid::is2x2AllSame(const glm::uvec3& pOrigin) {
+  uint64_t i = zorder(pOrigin);
+  uint64_t d = queryVoxelData(i);
+  d &= d << 8;
+  d &= d << 16;
+  d &= d << 32;
+  return *reinterpret_cast<uint64_t*>(&mVoxelData.at(i)) == d;
+}
+
+bool VoxelGrid::is2x2AllSame(const glm::uvec3& pOrigin, uint8_t pData) {
+  uint64_t i = zorder(pOrigin);
+  uint64_t d = pData;
+  d &= d << 8;
+  d &= d << 16;
+  d &= d << 32;
+  return *reinterpret_cast<uint64_t*>(&mVoxelData.at(i)) == d;
 }
 
 uint64_t VoxelGrid::getVoxelCount() {
