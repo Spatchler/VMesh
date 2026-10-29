@@ -70,7 +70,6 @@ namespace VMesh {
     void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
 
     bool isOctreeOctantAllSame(const uint64_t& pIndex, uint pSize);
-    bool isOctree2x2AllSame(const uint64_t& pIndex, uint8_t pData) noexcept;
 
     uint64_t getVoxelCount();
     uint64_t getVolume();

@@ -656,19 +656,14 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
 
 bool VoxelGrid::isOctreeOctantAllSame(const uint64_t& pIndex, uint pSize) {
   if (pSize <= 1) return true;
-  uint8_t first = queryVoxelData(pIndex);
-  uint64_t s = pIndex + pSize * pSize * pSize;
-  for (uint64_t i = pIndex; i < s; i += 8)
-    if (!isOctree2x2AllSame(i, first)) return false;
-  return true;
-}
-
-bool VoxelGrid::isOctree2x2AllSame(const uint64_t& pIndex, uint8_t pData) noexcept {
-  uint64_t d = pData;
+  uint64_t d = queryVoxelData(pIndex);
   d &= d << 8;
   d &= d << 16;
   d &= d << 32;
-  return *reinterpret_cast<uint64_t*>(&mVoxelData.at(pIndex)) == d;
+  uint64_t s = pIndex + pSize * pSize * pSize;
+  for (uint64_t i = pIndex; i < s; i += 8)
+    if (*reinterpret_cast<uint64_t*>(&mVoxelData.at(i)) != d) return false;
+  return true;
 }
 
 uint64_t VoxelGrid::getVoxelCount() {
