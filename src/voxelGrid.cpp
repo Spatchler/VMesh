@@ -285,9 +285,7 @@ void VoxelGrid::writeToFile(std::string pPath) {
   fout.close();
 }
 
-void VoxelGrid::writeToFileCompressed(std::string pPath, uint64_t* pVoxelsComplete) {
-  std::pair<std::vector<uint8_t>, std::vector<uint64_t>> compressedData = generateCompressedVoxelData(pVoxelsComplete);
-
+void VoxelGrid::writeToFileCompressed(std::string pPath, CompressedVoxelData_t& compressedData) {
   pPath.append(".vmc");
   {
     std::lock_guard<std::mutex> lock(mDefaultLogMutex);

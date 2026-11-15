@@ -17,6 +17,8 @@
 #include <bitset>
 
 namespace VMesh {
+  typedef std::pair<std::vector<uint8_t>, std::vector<uint64_t>> CompressedVoxelData_t;
+
   struct Triangle {
     std::array<Vertex, 3> verts;
     glm::vec3 normal;
@@ -54,7 +56,7 @@ namespace VMesh {
     void DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance);
 
     void writeToFile(std::string pPath);
-    void writeToFileCompressed(std::string pPath, uint64_t* pVoxelsComplete);
+    void writeToFileCompressed(std::string pPath, CompressedVoxelData_t& pCompressedVoxelData);
 
     void loadFromFile(const std::string& pPath);
     void loadFromFileCompressed(const std::string& pPath);
@@ -80,7 +82,7 @@ namespace VMesh {
     uint8_t queryVoxelData(uint64_t pIndex);
     uint8_t queryVoxelData(const glm::uvec3& pPos);
     const std::vector<uint8_t>& getVoxelData();
-    std::pair<std::vector<uint8_t>, std::vector<uint64_t>> generateCompressedVoxelData(uint64_t* pVoxelsComplete);
+    CompressedVoxelData_t generateCompressedVoxelData(uint64_t* pVoxelsComplete);
 
     static uint64_t zorder(const glm::uvec3& pPos);
 
