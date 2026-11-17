@@ -10,6 +10,7 @@
 
 #include <filesystem>
 #include <future>
+#include <atomic>
 #include <sstream>
 #include <fstream>
 #include <iostream>
@@ -50,10 +51,10 @@ namespace VMesh {
 
     void clear();
 
-    void IntersectVoxelizeMesh(Mesh& pMesh, uint* pTrisComplete);
-    void IntersectVoxelizeModel(Model& pMesh, uint* pTrisComplete);
-    void DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
-    void DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance);
+    void IntersectVoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete);
+    void IntersectVoxelizeModel(Model& pMesh, std::atomic<uint64_t>* pTrisComplete);
+    void DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
+    void DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance);
 
     void writeToFile(std::string pPath);
     void writeToFileCompressed(std::string pPath, CompressedVoxelData_t& pCompressedVoxelData);
@@ -82,7 +83,7 @@ namespace VMesh {
     uint8_t queryVoxelData(uint64_t pIndex);
     uint8_t queryVoxelData(const glm::uvec3& pPos);
     const std::vector<uint8_t>& getVoxelData();
-    CompressedVoxelData_t generateCompressedVoxelData(uint64_t* pVoxelsComplete);
+    CompressedVoxelData_t generateCompressedVoxelData(std::atomic<uint64_t>* pVoxelsComplete);
 
     static uint64_t zorder(const glm::uvec3& pPos);
 

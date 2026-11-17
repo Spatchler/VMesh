@@ -69,7 +69,7 @@ void VoxelGrid::clear() {
   std::fill(mVoxelData.begin(), mVoxelData.end(), 0);
 }
 
-void VoxelGrid::IntersectVoxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
+void VoxelGrid::IntersectVoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete) {
   const std::vector<Vertex>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
@@ -94,7 +94,7 @@ void VoxelGrid::IntersectVoxelizeMesh(Mesh& pMesh, uint* pTrisComplete) {
   }
 }
 
-void VoxelGrid::IntersectVoxelizeModel(Model& pModel, uint* pTrisComplete) {
+void VoxelGrid::IntersectVoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete) {
   for (uint i = 0; i < pModel.getNumMeshes(); ++i)
     IntersectVoxelizeMesh(pModel.getMesh(i), pTrisComplete);
 }
@@ -227,7 +227,7 @@ bool VoxelGrid::axistestZ0(const glm::vec3& pTranslatedTriPoint0, const glm::vec
   return false;
 }
 
-void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex) {
+void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex) {
   const std::vector<Vertex>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
@@ -256,7 +256,7 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, uint* pTrisComplete, float pAddColo
   }
 }
 
-void VoxelGrid::DDAvoxelizeModel(Model& pModel, uint* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance) {
+void VoxelGrid::DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance) {
   for (uint i = 0; i < pModel.getNumMeshes(); ++i) {
     Mesh& m = pModel.getMesh(i);
     Texture* t = NULL;
@@ -692,7 +692,7 @@ const std::vector<uint8_t>& VoxelGrid::getVoxelData() {
   return mVoxelData;
 }
 
-std::pair<std::vector<uint8_t>, std::vector<uint64_t>> VoxelGrid::generateCompressedVoxelData(uint64_t* pVoxelsComplete) {
+std::pair<std::vector<uint8_t>, std::vector<uint64_t>> VoxelGrid::generateCompressedVoxelData(std::atomic<uint64_t>* pVoxelsComplete) {
   std::pair<std::vector<uint8_t>, std::vector<uint64_t>> counts;
   uint64_t count = 0;
   uint8_t value = 0;
