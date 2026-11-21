@@ -267,7 +267,6 @@ void VoxelGrid::DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComp
 
 void VoxelGrid::writeToFile(std::string pPath) {
   pPath.append(".vmu");
-  std::println("Writing voxel data to: \e[1;3;4;33m{}\e[0m", pPath);
 
   std::ofstream fout;
   fout.open(pPath, std::ios::out | std::ios::binary);
@@ -287,10 +286,6 @@ void VoxelGrid::writeToFile(std::string pPath) {
 
 void VoxelGrid::writeToFileCompressed(std::string pPath, CompressedVoxelData_t& compressedData) {
   pPath.append(".vmc");
-  {
-    std::lock_guard<std::mutex> lock(mDefaultLogMutex);
-    std::println("Writing voxel data to: \e[1;3;4;33m{}\e[0m", pPath);
-  }
 
   std::ofstream fout;
   fout.open(pPath, std::ios::out | std::ios::binary);
@@ -378,7 +373,7 @@ void VoxelGrid::loadFromFileCompressed(const std::string& pPath) {
 }
 
 void VoxelGrid::loadFromVoxFile(const std::filesystem::path& pPath) {
-  Timer timer;
+  // Timer timer;
 
   // Open file
   std::ifstream fin;
@@ -405,7 +400,7 @@ void VoxelGrid::loadFromVoxFile(const std::filesystem::path& pPath) {
   }
 
   // std::println("Vox scene contains {} layers, {} groups, {} instances and {} models", scene->num_layers, scene->num_groups, scene->num_instances, scene->num_models);
-  std::println("Vox scene contains {} instances of {} models", scene->num_instances, scene->num_models);
+  // std::println("Vox scene contains {} instances of {} models", scene->num_instances, scene->num_models);
 
   // // Calculate group transforms
   // std::vector<glm::mat4> groupTransforms(scene->num_groups);
@@ -452,11 +447,11 @@ void VoxelGrid::loadFromVoxFile(const std::filesystem::path& pPath) {
   // Calculate required resolution and init grid
   maxPos -= minPos;
   for (mResolution = 1; mResolution < std::max(maxPos.x, std::max(maxPos.y, maxPos.z)); mResolution <<= 1) {}
-  std::println("Voxel grid using resolution: {}", mResolution);
+  // std::println("Voxel grid using resolution: {}", mResolution);
   init();
 
   // Combine instances
-  std::print("Combining instances [ 0 / {} ]", scene->num_instances);
+  // std::print("Combining instances [ 0 / {} ]", scene->num_instances);
   std::cout << std::flush;
   for (uint i = 0; i < scene->num_instances; ++i) {
     const ogt_vox_instance& instance = scene->instances[i];
@@ -482,14 +477,14 @@ void VoxelGrid::loadFromVoxFile(const std::filesystem::path& pPath) {
       insert({p.y, p.z, p.x}, v);
     }
 
-    std::print("\rCombining instances [ {} / {} ]", i+1, scene->num_instances);
+    // std::print("\rCombining instances [ {} / {} ]", i+1, scene->num_instances);
     std::cout << std::flush;
   }
-  std::println("\e[2K\rCombining instances done");
+  // std::println("\e[2K\rCombining instances done");
 
   ogt_vox_destroy_scene(scene);
 
-  std::println("Loading vox file took: {}", timer.getTime());
+  // std::println("Loading vox file took: {}", timer.getTime());
 }
 
 void VoxelGrid::setLogStream(std::ostream* pStream, std::mutex* pMutex) {
@@ -692,7 +687,7 @@ const std::vector<uint8_t>& VoxelGrid::getVoxelData() {
   return mVoxelData;
 }
 
-std::pair<std::vector<uint8_t>, std::vector<uint64_t>> VoxelGrid::generateCompressedVoxelData(std::atomic<uint64_t>* pVoxelsComplete) {
+CompressedVoxelData_t VoxelGrid::generateCompressedVoxelData(std::atomic<uint64_t>* pVoxelsComplete) {
   std::pair<std::vector<uint8_t>, std::vector<uint64_t>> counts;
   uint64_t count = 0;
   uint8_t value = 0;
