@@ -5,6 +5,7 @@
 #include <glm/gtx/norm.hpp>
 
 #include <string>
+#include <mutex>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -16,7 +17,7 @@ namespace VMesh {
     Palette();
 
     uint8_t addColour(const glm::vec3& pCol, float pDistance2 = 0.f);
-    uint8_t getClosestColour(const glm::vec3& pCol);
+    uint8_t getClosestColour(const glm::vec3& pCol, bool pShouldLock = true);
     glm::vec3 getColour(uint8_t pIndex);
 
     uint size();
@@ -24,6 +25,7 @@ namespace VMesh {
     void writeToFile(const std::string& pPath);
     void readFromFile(const std::string& pPath);
   protected:
+    std::mutex mMutex;
     void addColourToList(uint8_t pIndex, const glm::vec3& pCol);
     std::vector<glm::vec3> mColours;
     std::vector<uint> mColourCombinationCounts;

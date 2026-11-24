@@ -227,11 +227,11 @@ bool VoxelGrid::axistestZ0(const glm::vec3& pTranslatedTriPoint0, const glm::vec
   return false;
 }
 
-void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex) {
+void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, BS::thread_pool<BS::tp::none>& pThreadPool, Texture* pTex) {
   const std::vector<Vertex>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
-  for (uint i = 0; i < pMesh.getTriCount(); ++i, ++*pTrisComplete) { // Every triangle
+  pThreadPool.detach_loop(0, pMesh.getTriCount(), [this, &verts, &indices, &pAddColourDistance, &pCreatePalette, &pTex, &pTrisComplete](const std::size_t i){
     std::array<Vertex, 3> points;
 
     bool xp = true, xn = true;
@@ -240,29 +240,35 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplet
 
     for (uint8_t j = 0; j < 3; ++j) {
       points[j] = verts[indices[i*3+j]];
-      points[j].pos -= mOrigin;
-      xp = xp && points[j].pos.x > mResolution;
+      points[j].pos -= this->mOrigin;
+      xp = xp && points[j].pos.x > this->mResolution;
       xn = xn && points[j].pos.x < 0;
-      yp = yp && points[j].pos.y > mResolution;
+      yp = yp && points[j].pos.y > this->mResolution;
       yn = yn && points[j].pos.y < 0;
-      zp = zp && points[j].pos.z > mResolution;
+      zp = zp && points[j].pos.z > this->mResolution;
       zn = zn && points[j].pos.z < 0;
     }
 
     // Check if all points are to one side
-    if (xp || xn || yp || yn || zp || zn) continue;
+    if (xp || xn || yp || yn || zp || zn) return;
 
-    DDAvoxelizeTriangle(points, pAddColourDistance, pCreatePalette, pTex);
-  }
+    this->DDAvoxelizeTriangle(points, pAddColourDistance, pCreatePalette, pTex);
+    ++*pTrisComplete;
+  });
+  pThreadPool.wait();
 }
 
-void VoxelGrid::DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance) {
+void VoxelGrid::DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance, uint pNumThreads) {
+  BS::thread_pool threadPool(pNumThreads);
+
   for (uint i = 0; i < pModel.getNumMeshes(); ++i) {
     Mesh& m = pModel.getMesh(i);
     Texture* t = NULL;
     if (pColoured) t = &pModel.getDiffuseMap(m.getMatIndex());
-    DDAvoxelizeMesh(m, pTrisComplete, pAddColourDistance, pCreatePalette, t);
+    DDAvoxelizeMesh(m, pTrisComplete, pAddColourDistance, pCreatePalette, threadPool, t);
   }
+
+  threadPool.wait();
 }
 
 void VoxelGrid::writeToFile(std::string pPath) {
@@ -498,6 +504,7 @@ void VoxelGrid::setUseMatrixBarycentricCompute(bool pState) {
 }
 
 void VoxelGrid::insert(uint64_t pIndex, uint8_t pCol) {
+  std::lock_guard<std::mutex> lock(mInsertMutex);
   if (pIndex >= mVoxelData.size()) return;
   if (mVoxelData.at(pIndex) == 0) ++mVoxelCount;
   mVoxelData.at(pIndex) = pCol;
@@ -513,7 +520,7 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
   if (glm::floor(pVerts[0].pos) == glm::floor(pVerts[1].pos) && glm::floor(pVerts[0].pos) == glm::floor(pVerts[2].pos)) {
 
     uint8_t col = 1;
-    if (pTex) {
+    if (pTex != nullptr) {
       if (pCreatePalette) col = mPalette.addColour(pTex->sample(pVerts[0].texCoord), pAddColourDistance) + 1;
       else col = mPalette.getClosestColour(pTex->sample(pVerts[0].texCoord)) + 1;
     }
@@ -577,7 +584,7 @@ void VoxelGrid::DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColo
   }
 
   // Iterate over along the dominant axis traversing between the two lines
-  for (float dominantAxisValue = std::max(0.f, pVerts[0].pos[dominantAxisIndex]); dominantAxisValue <= std::min((float)mResolution, pVerts[2].pos[dominantAxisIndex]); ++dominantAxisValue) {
+  for (float dominantAxisValue = std::max(0.f, pVerts[0].pos[dominantAxisIndex]); dominantAxisValue <= std::min(static_cast<float>(mResolution), pVerts[2].pos[dominantAxisIndex]); ++dominantAxisValue) {
     glm::vec3* l1Dir = &lmDir;
     glm::vec3* l1DirInv = &lmDirInv;
     glm::vec3* l2Dir = &lhDir;
@@ -838,8 +845,8 @@ glm::vec2 VoxelGrid::computeTexCoord(const glm::vec3& pPoint, const Triangle& pT
 }
 
 uint8_t VoxelGrid::sample(const glm::vec3& pPoint, const Triangle& pTri, bool pCreatePalette, float pAddColourDistance, Texture* pTex) {
-  uint8_t col { 1 };
-  if (pTex) {
+  uint8_t col {1};
+  if (pTex != nullptr) {
     glm::vec2 texCoord { computeTexCoord(pPoint, pTri) };
     glm::vec4 sample { pTex->sample(texCoord) };
     if (sample.w == 0.f) return 0;

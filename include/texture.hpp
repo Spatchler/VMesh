@@ -7,13 +7,14 @@
 #include <glm/glm.hpp>
 
 #include <string>
+#include <mutex>
 #include <algorithm>
 #include <print>
 
 namespace VMesh {
   class Texture {
   public:
-    Texture(const std::string& pPath, const std::array<aiTextureMapMode, 3>& pMapModes);
+    Texture(std::string&& pPath, const std::array<aiTextureMapMode, 3>& pMapModes);
     Texture(const glm::vec4& pColour);
 
     glm::vec4 sample(glm::vec2 pTexCoord);
@@ -23,6 +24,7 @@ namespace VMesh {
     void release();
   private:
     std::array<aiTextureMapMode, 3> mMapModes;
+    std::mutex* mMutex;
     bool mIsColour;
     glm::vec4 mColour;
     std::string mPath;

@@ -6,6 +6,8 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
+#include <BS_thread_pool.hpp>
+
 #include <cassert>
 
 #include <filesystem>
@@ -53,8 +55,8 @@ namespace VMesh {
 
     void IntersectVoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete);
     void IntersectVoxelizeModel(Model& pMesh, std::atomic<uint64_t>* pTrisComplete);
-    void DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
-    void DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance);
+    void DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, BS::thread_pool<BS::tp::none>& pThreadPool, Texture* pTex = nullptr);
+    void DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance, uint pNumThreads = 10);
 
     void writeToFile(std::string pPath);
     void writeToFileCompressed(std::string pPath, CompressedVoxelData_t& pCompressedVoxelData);
@@ -63,14 +65,14 @@ namespace VMesh {
     void loadFromFileCompressed(const std::string& pPath);
     void loadFromVoxFile(const std::filesystem::path& pPath);
 
-    void setLogStream(std::ostream* pStream, std::mutex* pMutex = NULL);
+    void setLogStream(std::ostream* pStream, std::mutex* pMutex = nullptr);
 
     void setUseMatrixBarycentricCompute(bool pState);
 
     void insert(uint64_t pIndex, uint8_t pCol);
     void insert(const glm::uvec3& pPos, uint8_t pCol);
 
-    void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourDistance, bool pCreatePalette, Texture* pTex = NULL);
+    void DDAvoxelizeTriangle(std::array<Vertex, 3> pVerts, float pAddColourDistance, bool pCreatePalette, Texture* pTex = nullptr);
 
     bool isOctreeOctantAllSame(const uint64_t& pIndex, uint pSize);
 
@@ -93,6 +95,8 @@ namespace VMesh {
     std::stringstream mDefaultLogStream;
   protected:
     void init();
+
+    std::mutex mInsertMutex;
 
     bool triangleBoxIntersect(const std::array<glm::vec3, 3>& pTriPoints, const glm::vec3& pBoxOrigin);
     bool planeBoxOverlap(glm::vec3& pNormal, glm::vec3& pVert);

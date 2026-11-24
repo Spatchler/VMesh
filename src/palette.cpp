@@ -11,8 +11,10 @@ uint8_t Palette::addColour(const glm::vec3& pCol, float pDistance2) {
       pCol.z > 1.f || pCol.z < 0.f)
     throw std::invalid_argument("rgb values have to be normalized");
 
+  std::scoped_lock lock{mMutex};
+
   if (mColours.size() == 255) {
-    uint8_t i = getClosestColour(pCol);
+    uint8_t i = getClosestColour(pCol, false);
     addColourToList(i, pCol);
     return i;
   }
@@ -29,7 +31,8 @@ uint8_t Palette::addColour(const glm::vec3& pCol, float pDistance2) {
   return mColours.size() - 1;
 }
 
-uint8_t Palette::getClosestColour(const glm::vec3& pCol) {
+uint8_t Palette::getClosestColour(const glm::vec3& pCol, bool pShouldLock) {
+  if (pShouldLock) mMutex.lock();
   float minDist2 = 1.f;
   uint8_t minDist2Index = 0;
   for (uint i = 0; i < mColours.size(); ++i) {
@@ -39,14 +42,17 @@ uint8_t Palette::getClosestColour(const glm::vec3& pCol) {
       minDist2Index = i;
     }
   }
+  if (pShouldLock) mMutex.unlock();
   return minDist2Index;
 }
 
 glm::vec3 Palette::getColour(uint8_t pIndex) {
+  std::lock_guard<std::mutex> lock(mMutex);
   return mColours.at(pIndex);
 }
 
 uint Palette::size() {
+  std::lock_guard<std::mutex> lock(mMutex);
   return mColours.size();
 }
 
