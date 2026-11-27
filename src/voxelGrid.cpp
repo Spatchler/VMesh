@@ -227,11 +227,11 @@ bool VoxelGrid::axistestZ0(const glm::vec3& pTranslatedTriPoint0, const glm::vec
   return false;
 }
 
-void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, BS::thread_pool<BS::tp::none>& pThreadPool, Texture* pTex) {
+void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex) {
   const std::vector<Vertex>& verts = pMesh.getVertices();
   const std::vector<uint>& indices = pMesh.getIndices();
 
-  pThreadPool.detach_loop(0, pMesh.getTriCount(), [this, &verts, &indices, &pAddColourDistance, &pCreatePalette, &pTex, &pTrisComplete](const std::size_t i){
+  for (uint i = 0; i < pMesh.getTriCount(); ++i) {
     std::array<Vertex, 3> points;
 
     bool xp = true, xn = true;
@@ -240,35 +240,30 @@ void VoxelGrid::DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplet
 
     for (uint8_t j = 0; j < 3; ++j) {
       points[j] = verts[indices[i*3+j]];
-      points[j].pos -= this->mOrigin;
-      xp = xp && points[j].pos.x > this->mResolution;
+      points[j].pos -= mOrigin;
+      xp = xp && points[j].pos.x > mResolution;
       xn = xn && points[j].pos.x < 0;
-      yp = yp && points[j].pos.y > this->mResolution;
+      yp = yp && points[j].pos.y > mResolution;
       yn = yn && points[j].pos.y < 0;
-      zp = zp && points[j].pos.z > this->mResolution;
+      zp = zp && points[j].pos.z > mResolution;
       zn = zn && points[j].pos.z < 0;
     }
 
     // Check if all points are to one side
     if (xp || xn || yp || yn || zp || zn) return;
 
-    this->DDAvoxelizeTriangle(points, pAddColourDistance, pCreatePalette, pTex);
+    DDAvoxelizeTriangle(points, pAddColourDistance, pCreatePalette, pTex);
     ++*pTrisComplete;
-  });
-  pThreadPool.wait();
+  }
 }
 
-void VoxelGrid::DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance, uint pNumThreads) {
-  BS::thread_pool threadPool(pNumThreads);
-
+void VoxelGrid::DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance) {
   for (uint i = 0; i < pModel.getNumMeshes(); ++i) {
     Mesh& m = pModel.getMesh(i);
     Texture* t = NULL;
     if (pColoured) t = &pModel.getDiffuseMap(m.getMatIndex());
-    DDAvoxelizeMesh(m, pTrisComplete, pAddColourDistance, pCreatePalette, threadPool, t);
+    DDAvoxelizeMesh(m, pTrisComplete, pAddColourDistance, pCreatePalette, t);
   }
-
-  threadPool.wait();
 }
 
 void VoxelGrid::writeToFile(std::string pPath) {
@@ -504,11 +499,11 @@ void VoxelGrid::setUseMatrixBarycentricCompute(bool pState) {
 }
 
 void VoxelGrid::insert(uint64_t pIndex, uint8_t pCol) {
-  std::lock_guard<std::mutex> lock(mInsertMutex);
   if (pIndex >= mVoxelData.size()) return;
-  if (mVoxelData.at(pIndex) == 0) ++mVoxelCount;
-  mVoxelData.at(pIndex) = pCol;
-  if (pCol == 0) --mVoxelCount;
+  uint8_t& v = mVoxelData.at(pIndex);
+  if (v == 0 && pCol != 0) ++mVoxelCount;
+  else if (v == 0 && pCol == 0) --mVoxelCount;
+  v = pCol;
 }
 
 void VoxelGrid::insert(const glm::uvec3& pPos, uint8_t pCol) {

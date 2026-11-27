@@ -7,7 +7,6 @@
 #include <glm/glm.hpp>
 
 #include <string>
-#include <mutex>
 #include <algorithm>
 #include <print>
 
@@ -24,7 +23,6 @@ namespace VMesh {
     void release();
   private:
     std::array<aiTextureMapMode, 3> mMapModes;
-    std::mutex* mMutex;
     bool mIsColour;
     glm::vec4 mColour;
     std::string mPath;

@@ -6,8 +6,6 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
-#include <BS_thread_pool.hpp>
-
 #include <cassert>
 
 #include <filesystem>
@@ -55,8 +53,8 @@ namespace VMesh {
 
     void IntersectVoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete);
     void IntersectVoxelizeModel(Model& pMesh, std::atomic<uint64_t>* pTrisComplete);
-    void DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, BS::thread_pool<BS::tp::none>& pThreadPool, Texture* pTex = nullptr);
-    void DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance, uint pNumThreads = 10);
+    void DDAvoxelizeMesh(Mesh& pMesh, std::atomic<uint64_t>* pTrisComplete, float pAddColourDistance, bool pCreatePalette, Texture* pTex = nullptr);
+    void DDAvoxelizeModel(Model& pModel, std::atomic<uint64_t>* pTrisComplete, bool pColoured, bool pCreatePalette, float pAddColourDistance);
 
     void writeToFile(std::string pPath);
     void writeToFileCompressed(std::string pPath, CompressedVoxelData_t& pCompressedVoxelData);

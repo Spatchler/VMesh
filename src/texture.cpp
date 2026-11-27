@@ -3,7 +3,7 @@
 using namespace VMesh;
 
 Texture::Texture(std::string&& pPath, const std::array<aiTextureMapMode, 3>& pMapModes)
-:mMutex(new std::mutex()), mPath(std::move(pPath)), mIsColour(false), mMapModes(pMapModes) {
+:mPath(std::move(pPath)), mIsColour(false), mMapModes(pMapModes) {
   std::replace(mPath.begin(), mPath.end(), '\\', '/');
   stbi_set_flip_vertically_on_load(true);
   mData = stbi_load(mPath.c_str(), &mSize.x, &mSize.y, &mNrComponents, 4); // Force 4 channels
@@ -19,7 +19,6 @@ Texture::Texture(const glm::vec4& pColour)
 }
 
 glm::vec4 Texture::sample(glm::vec2 pTexCoord) {
-  std::lock_guard<std::mutex> lock(*mMutex);
   if (mIsColour) return mColour;
   if ((pTexCoord.x > 1.f) || (pTexCoord.x < 0.f)) {
     if (mMapModes[0] == aiTextureMapMode_Wrap) pTexCoord.x = pTexCoord.x - std::floor(pTexCoord.x);
@@ -50,5 +49,4 @@ const std::string& Texture::getPath() {
 void Texture::release() {
   if (mIsColour) return;
   stbi_image_free(mData);
-  delete mMutex;
 }

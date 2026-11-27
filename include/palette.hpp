@@ -5,7 +5,6 @@
 #include <glm/gtx/norm.hpp>
 
 #include <string>
-#include <mutex>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -25,7 +24,6 @@ namespace VMesh {
     void writeToFile(const std::string& pPath);
     void readFromFile(const std::string& pPath);
   protected:
-    std::mutex mMutex;
     void addColourToList(uint8_t pIndex, const glm::vec3& pCol);
     std::vector<glm::vec3> mColours;
     std::vector<uint> mColourCombinationCounts;
